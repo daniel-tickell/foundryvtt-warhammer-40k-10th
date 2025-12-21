@@ -1,0 +1,28 @@
+name: Upload system.json to Release
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  upload-json:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Required to upload assets to the release
+
+    steps:
+      # 1. Checkout the code to get access to system.json
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # (Optional) If you need to generate/build system.json dynamically, add that step here.
+      # For example:
+      # - name: Generate JSON
+      #   run: node generate-system-json.js
+
+      # 2. Upload system.json to the release
+      - name: Upload Release Asset
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: system.json
