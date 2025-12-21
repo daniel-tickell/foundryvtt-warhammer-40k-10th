@@ -43,6 +43,39 @@ Hooks.once('init', function() {
     CONFIG.Actor.documentClass = WarhammerActor;
     CONFIG.Item.documentClass = WarhammerItem;
     CONFIG.Token.documentClass = WarhammerTokenDocument;
+    CONFIG.statusEffects = [
+        {
+            id: "battleshocked",
+            label: "Battleshocked",
+            icon: "icons/svg/skull.svg"
+        },
+        {
+            id: "suppressed",
+            label: "Suppressed",
+            icon: "icons/svg/downgrade.svg"
+        },
+        {
+            id: "stealth",
+            label: "Stealth",
+            icon: "icons/svg/blind.svg"
+        },
+        {
+            id: "cover",
+            label: "Benefit of Cover",
+            icon: "icons/svg/shield.svg"
+        },
+        {
+            id: "advance",
+            label: "Advanced",
+            icon: "icons/svg/up.svg"
+        },
+        {
+            id: "fallback",
+            label: "Fell Back",
+            icon: "icons/svg/cowled.svg"
+        }
+    ];
+
     CONFIG.Combat.initiative = {
         formula: '1d6',
         decimals: 2,
