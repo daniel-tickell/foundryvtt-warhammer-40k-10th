@@ -1,27 +1,27 @@
-import {WarhammerItem} from "./items/item.js";
-import {WarhammerActor} from "./actors/actor.js";
-import {WarhammerModelSheet} from "./actors/actor-sheet.js";
-import {getBaseToBaseDist, mmToInch, SYSTEM_ID} from "./constants.js";
-import {preloadHandlebarsTemplates} from "./templates.js";
-import {WarhammerModelData} from "./actors/warhammerModelData.js";
-import {WeaponData} from "./items/weaponData.js";
-import {WeaponTagData} from "./items/weaponTagData.js";
-import {WarhammerAbilitySheet} from "./items/warhammer-ability-sheet.js";
-import {WarhammerWeaponSheet} from "./items/warhammer-weapon-sheet.js";
-import {WarhammerWTagSheet} from "./items/warhammer-wtag-sheet.js";
-import {WarhammerRuler} from "./warhammerRuler.js";
-import {WarhammerToken, WarhammerTokenDocument} from "./token.js";
+import { WarhammerItem } from "./items/item.js";
+import { WarhammerActor } from "./actors/actor.js";
+import { WarhammerModelSheet } from "./actors/actor-sheet.js";
+import { getBaseToBaseDist, mmToInch, SYSTEM_ID } from "./constants.js";
+import { preloadHandlebarsTemplates } from "./templates.js";
+import { WarhammerModelData } from "./actors/warhammerModelData.js";
+import { WeaponData } from "./items/weaponData.js";
+import { WeaponTagData } from "./items/weaponTagData.js";
+import { WarhammerAbilitySheet } from "./items/warhammer-ability-sheet.js";
+import { WarhammerWeaponSheet } from "./items/warhammer-weapon-sheet.js";
+import { WarhammerWTagSheet } from "./items/warhammer-wtag-sheet.js";
+import { WarhammerRuler } from "./warhammerRuler.js";
+import { WarhammerToken, WarhammerTokenDocument } from "./token.js";
 import "../libs/awesomplete/awesomplete.js"
-import {WarhammerObjectiveData} from "./actors/warhammerObjectiveData.js";
-import {WarhammerObjectiveSheet} from "./actors/objective-sheet.js";
-import {RosterImporter} from "./importer.js";
+import { WarhammerObjectiveData } from "./actors/warhammerObjectiveData.js";
+import { WarhammerObjectiveSheet } from "./actors/objective-sheet.js";
+import { RosterImporter } from "./importer.js";
 /* -------------------------------------------- */
 /*  Foundry VTT Initialization                  */
 /* -------------------------------------------- */
 /**
  * Init hook.
  */
-Hooks.once('init', function() {
+Hooks.once('init', function () {
 
     // Add utility classes to the global game object so that they're more easily
     // accessible in global contexts.
@@ -43,6 +43,14 @@ Hooks.once('init', function() {
     CONFIG.Actor.documentClass = WarhammerActor;
     CONFIG.Item.documentClass = WarhammerItem;
     CONFIG.Token.documentClass = WarhammerTokenDocument;
+    game.settings.register(SYSTEM_ID, "baseSizes", {
+        name: "Base Sizes",
+        scope: "world",
+        config: false,
+        type: Object,
+        default: {}
+    });
+
     CONFIG.statusEffects = [
         {
             id: "battleshocked",
@@ -116,13 +124,13 @@ Hooks.once('init', function() {
 
 //turn tag string into array of tags
 Hooks.on('preUpdateActor', function (actor, change, options, userid) {
-        if (change?.system?.baseSize){
-            if (!change.prototypeToken){
-                change.prototypeToken = {height:0,width:0}
-            }
-            change.prototypeToken.height = mmToInch(change.system.baseSize) //convert mm to inches
-            change.prototypeToken.width =  mmToInch(change.system.baseSize)
+    if (change?.system?.baseSize) {
+        if (!change.prototypeToken) {
+            change.prototypeToken = { height: 0, width: 0 }
         }
+        change.prototypeToken.height = mmToInch(change.system.baseSize) //convert mm to inches
+        change.prototypeToken.width = mmToInch(change.system.baseSize)
+    }
 })
 Hooks.on('preCreateActor', function (actor, data, options, userid) {
     actor.updateSource({
@@ -131,7 +139,7 @@ Hooks.on('preCreateActor', function (actor, data, options, userid) {
             width: mmToInch(actor.system.baseSize),
         }
     })
-    if (actor.type === "objective"){
+    if (actor.type === "objective") {
         actor.updateSource({
             img: "icons/svg/target.svg",
             prototypeToken: {
@@ -146,7 +154,7 @@ Hooks.on('preCreateActor', function (actor, data, options, userid) {
 })
 //stolen from https://gitlab.com/tposney/midi-qol/-/blob/v11/src/module/chatMessageHandling.ts
 Hooks.on('renderChatMessage', function (message, html, messageData) {
-    let _highlighted= null;
+    let _highlighted = null;
 
     let _onTargetHover = (event) => {
         event.preventDefault();
@@ -209,11 +217,11 @@ function updateTokenRulerState(newState) {
     game.settings.set(SYSTEM_ID, "lastToggleState", newState);
 }
 
-Hooks.on("renderActiveEffectConfig", function (application, html, data)  {
+Hooks.on("renderActiveEffectConfig", function (application, html, data) {
     let inputs = html.find(".key input")
-    $.map( inputs, input => {
+    $.map(inputs, input => {
         new Awesomplete(input, {
-            list: Object.keys(foundry.utils.flattenObject(application.object.parent.system)).map(s => "system."+s)
+            list: Object.keys(foundry.utils.flattenObject(application.object.parent.system)).map(s => "system." + s)
         });
     })
 })
@@ -224,9 +232,9 @@ Hooks.on("renderTokenConfig", function (config, html, data) {
             <label>Art Offset</label>
             <div class="form-fields">
                 <label>X</label>
-                <input type="number" step="1" name="flags.${SYSTEM_ID}.offX" placeholder="px" ${config.token.getFlag(SYSTEM_ID, "offX") ? "value=\""+config.token.getFlag(SYSTEM_ID, "offX")+"\"" : ""}>
+                <input type="number" step="1" name="flags.${SYSTEM_ID}.offX" placeholder="px" ${config.token.getFlag(SYSTEM_ID, "offX") ? "value=\"" + config.token.getFlag(SYSTEM_ID, "offX") + "\"" : ""}>
                 <label>Y</label>
-                <input type="number" step="1" name="flags.${SYSTEM_ID}.offY" placeholder="px" ${config.token.getFlag(SYSTEM_ID, "offY") ? "value=\""+config.token.getFlag(SYSTEM_ID, "offY")+"\"" : ""}>
+                <input type="number" step="1" name="flags.${SYSTEM_ID}.offY" placeholder="px" ${config.token.getFlag(SYSTEM_ID, "offY") ? "value=\"" + config.token.getFlag(SYSTEM_ID, "offY") + "\"" : ""}>
             </div>
         </div>
 `
@@ -234,11 +242,11 @@ Hooks.on("renderTokenConfig", function (config, html, data) {
 })
 
 let updateObjectives = foundry.utils.debounce(() => {
-        let objectives = canvas.tokens.placeables.filter(x => x.actor?.type === "objective")
-        objectives.map(x => x.actor.updateObjective(x))
-    }, 50
+    let objectives = canvas.tokens.placeables.filter(x => x.actor?.type === "objective")
+    objectives.map(x => x.actor.updateObjective(x))
+}, 50
 )
-Hooks.on("refreshToken", (token, flags)=> {
+Hooks.on("refreshToken", (token, flags) => {
     if (flags.refreshBar || flags.refreshPosition)
         updateObjectives()
 })
@@ -248,7 +256,7 @@ Hooks.once("dragRuler.ready", (SpeedProvider) => {
     class WarhammerSpeedProvider extends SpeedProvider {
         get colors() {
             return [
-                {id: "move", default: 0x00FF00, name: "NORMAL MOVE"},
+                { id: "move", default: 0x00FF00, name: "NORMAL MOVE" },
             ]
         }
 
@@ -259,7 +267,7 @@ Hooks.once("dragRuler.ready", (SpeedProvider) => {
             const baseSpeed = token.actor.system.stats.move
 
             return [
-                {range: baseSpeed, color: "move"},
+                { range: baseSpeed, color: "move" },
             ]
         }
     }
@@ -280,16 +288,30 @@ Hooks.on('renderActorDirectory', (app, html, data) => {
             "    <p class=\"notes\">You may import a roster in the .ros format</p>\n" +
             "    <div class=\"form-group\">\n" +
             "        <label for=\"data\">Roster File</label>\n" +
-            "        <input type=\"file\" name=\"data\" accept='.ros'/>\n" +
+            "        <input type=\"file\" name=\"data\" accept='.ros,.json'/>\n" +
             "    </div>\n",
         buttons: {
+            updateSizes: {
+                icon: '<i class="fas fa-ruler-combined"></i>',
+                label: "Update Base Sizes",
+                callback: async () => {
+                    const { RosterImporter } = await import("./importer.js");
+                    await RosterImporter.fetchBaseSizes();
+                    ui.notifications.info("Base sizes updated from Wahapedia");
+                    // Re-render dialog to allow import immediately after? 
+                    // Or just close. User likely wants to import after.
+                    // For now, let's just update and close, but maybe we can keep it open or just rely on user re-opening.
+                    // Actually, if I close it, they have to click 'Import Roster' again.
+                    // A better UX might be to have this as a separate action or just let them re-open.
+                }
+            },
             import: {
                 icon: "<i class=\"fas fa-file-import\"></i>",
                 label: "Import",
                 cssClass: "import default",
                 callback: html => {
                     const form = html.find("form")[0];
-                    if ( !form.data.files.length ) return ui.notifications.error("You did not upload a data file!");
+                    if (!form.data.files.length) return ui.notifications.error("You did not upload a data file!");
                     readTextFromFile(form.data.files[0]).then(rosterXML => RosterImporter.import(rosterXML));
                 }
             },
@@ -301,6 +323,7 @@ Hooks.on('renderActorDirectory', (app, html, data) => {
         }
     })
 
-    html.find('.import-roster').click(()=>{
-        d.render(true)})
+    html.find('.import-roster').click(() => {
+        d.render(true)
+    })
 });
