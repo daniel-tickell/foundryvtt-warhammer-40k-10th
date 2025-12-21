@@ -17,8 +17,8 @@ jobs:
 
       # (Optional) If you need to generate/build system.json dynamically, add that step here.
       # For example:
-      # - name: Generate JSON
-      #   run: node generate-system-json.js
+      - name: Generate JSON
+        run: node generate-system-json.js
 
       # 2. Upload system.json to the release
       - name: Upload Release Asset
