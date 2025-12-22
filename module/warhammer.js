@@ -278,10 +278,12 @@ Hooks.once("dragRuler.ready", (SpeedProvider) => {
 Hooks.on('renderActorDirectory', (app, html, data) => {
 
     //return early if user isn't a gm (and thus can't create folders, which the importer does)
-    if (!game.user.isGM)
-        return
+    if (!game.user.isGM) return
 
-    html.find('div.action-buttons').append("<button class='import-roster'><i class=\"fas fa-file-import\"></i>Import Roster</button>");
+    let actions = html.find('.action-buttons');
+    if (!actions.length) actions = html.find('.header-actions');
+
+    actions.append("<button class='import-roster'><i class=\"fas fa-file-import\"></i> Import Roster</button>");
     let d = new Dialog({
         title: "Roster Import",
         content: "<form autocomplete=\"off\" onsubmit=\"event.preventDefault();\">\n" +
@@ -312,7 +314,7 @@ Hooks.on('renderActorDirectory', (app, html, data) => {
                 callback: html => {
                     const form = html.find("form")[0];
                     if (!form.data.files.length) return ui.notifications.error("You did not upload a data file!");
-                    readTextFromFile(form.data.files[0]).then(rosterXML => RosterImporter.import(rosterXML));
+                    readTextFromFile(form.data.files[0]).then(content => RosterImporter.import(content));
                 }
             },
             no: {
