@@ -207,8 +207,14 @@ Hooks.on("getSceneControlButtons", controls => {
             visible: true,
         }
     }
-    const tokenControls = controls.find(group => group.name === "token").tools
-    tokenControls.splice(tokenControls.findIndex(tool => tool.name === "ruler") + 1, 0, tokenRulerTool)
+    // Handle case where controls might not be the array we expect
+    if (!controls || !Array.isArray(controls)) return;
+
+    const tokenGroup = controls.find(group => group.name === "token");
+    if (tokenGroup) {
+        const tokenControls = tokenGroup.tools;
+        tokenControls.splice(tokenControls.findIndex(tool => tool.name === "ruler") + 1, 0, tokenRulerTool)
+    }
 })
 
 function updateTokenRulerState(newState) {
