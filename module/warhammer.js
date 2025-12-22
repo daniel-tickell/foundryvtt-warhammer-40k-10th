@@ -14,7 +14,6 @@ import { WarhammerToken, WarhammerTokenDocument } from "./token.js";
 import "../libs/awesomplete/awesomplete.js"
 import { WarhammerObjectiveData } from "./actors/warhammerObjectiveData.js";
 import { WarhammerObjectiveSheet } from "./actors/objective-sheet.js";
-import { RosterImporter } from "./importer.js";
 /* -------------------------------------------- */
 /*  Foundry VTT Initialization                  */
 /* -------------------------------------------- */
@@ -313,9 +312,10 @@ Hooks.on('renderActorDirectory', (app, html, data) => {
                 icon: "<i class=\"fas fa-file-import\"></i>",
                 label: "Import",
                 cssClass: "import default",
-                callback: html => {
+                callback: async html => {
                     const form = html.find("form")[0];
                     if (!form.data.files.length) return ui.notifications.error("You did not upload a data file!");
+                    const { RosterImporter } = await import("./importer.js");
                     readTextFromFile(form.data.files[0]).then(content => RosterImporter.import(content));
                 }
             },
