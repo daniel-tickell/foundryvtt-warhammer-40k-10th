@@ -486,138 +486,137 @@ export class RosterImporter {
             await this._importJSONItem(item, actor);
         }
     }
-}
 
     static async _importJSONItem(itemData, actor) {
-    // itemData could be a 'profile' or a 'rule' object from JSON
-    // Profile has 'typeName', 'characteristics' (array)
-    // Rule has 'name', 'description'
+        // itemData could be a 'profile' or a 'rule' object from JSON
+        // Profile has 'typeName', 'characteristics' (array)
+        // Rule has 'name', 'description'
 
-    try {
-        // Is it a Rule?
-        if (itemData.description && !itemData.typeName) {
-            // It's a rule
-            let data = {
-                name: itemData.name,
-                type: "ability",
-                system: {
-                    description: itemData.description
-                }
-            };
-            if (data.name === "Stealth") {
-                await ActiveEffect.create({
-                    name: data.name,
-                    changes: [{ key: 'system.modifiers.grants.hitroll.ranged.bonus', value: -1, mode: 5 }]
-                }, { parent: actor });
-            }
-            if (data.name === "Lone Operative") {
-                await ActiveEffect.create({
-                    name: data.name,
-                    changes: [{ key: 'system.loneOperative', value: true, mode: 5 }]
-                }, { parent: actor });
-            }
-            await Item.create(data, { parent: actor });
-            return;
-        }
-
-        // Is it a Profile?
-        if (itemData.typeName) {
-            if (itemData.typeName === "Abilities") {
-                let desc = itemData.characteristics.find(c => c.name === "Description")?.$text || "";
+        try {
+            // Is it a Rule?
+            if (itemData.description && !itemData.typeName) {
+                // It's a rule
                 let data = {
                     name: itemData.name,
                     type: "ability",
-                    system: { description: desc }
+                    system: {
+                        description: itemData.description
+                    }
                 };
-
-                if (data.name === "Invulnerable Save") {
+                if (data.name === "Stealth") {
                     await ActiveEffect.create({
-                        label: data.name,
-                        changes: [{
-                            key: 'system.invulnsave',
-                            value: desc.match(/(\d)+/)[1],
-                            mode: 5,
-                        }]
-                    }, { parent: actor })
-                    return
+                        name: data.name,
+                        changes: [{ key: 'system.modifiers.grants.hitroll.ranged.bonus', value: -1, mode: 5 }]
+                    }, { parent: actor });
                 }
-
+                if (data.name === "Lone Operative") {
+                    await ActiveEffect.create({
+                        name: data.name,
+                        changes: [{ key: 'system.loneOperative', value: true, mode: 5 }]
+                    }, { parent: actor });
+                }
                 await Item.create(data, { parent: actor });
+                return;
             }
-            else if (itemData.typeName.endsWith("Weapons")) {
-                let data = {
-                    name: itemData.name,
-                    type: "weapon",
-                    system: {}
-                };
 
-                let getChar = (n) => itemData.characteristics.find(c => c.name === n)?.$text || "0";
-
-                data.system.range = getChar('Range').replace("\"", '').replace("Melee", '0');
-                data.system.attacks = getChar('A').replace(/(?:\D|^)D(\d)/, ' 1D$1');
-                data.system.skill = getChar('BS') === "N/A" ? getChar('WS').replace("+", '') : getChar('BS').replace("+", '');
-                if (data.system.skill === "0") data.system.skill = getChar('WS').replace("+", ''); // Fallback if BS was N/A but WS exists or vice versa check logic
-
-                // Actually looking at XML logic:
-                // querySelector("characteristic[name='BS'], characteristic[name='WS']")
-                // It picks the first one found ? 
-                // In JSON we have implicit names.
-                // Ranged has BS, Melee has WS.
-                // Let's rely on typeName or just check both.
-                let bs = itemData.characteristics.find(c => c.name === "BS");
-                let ws = itemData.characteristics.find(c => c.name === "WS");
-                let val = (bs && bs.$text !== "N/A") ? bs.$text : (ws ? ws.$text : "0");
-                data.system.skill = val.replace("+", '');
-
-                data.system.strength = getChar('S');
-                data.system.ap = getChar('AP');
-                data.system.damage = getChar('D').replace(/(?:\D|^)D(\d)/, ' 1D$1');
-
-                let tagsStr = getChar('Keywords');
-                let tags = tagsStr.replace(/(?:\D|^)D(\d)/, ' 1D$1').replace("+", '').split(",");
-                tags = tags.map(i => i.trim()).filter(i => i && i !== "-");
-
-                data.system.tags = [];
-
-                // We need rules for tags to find descriptions.
-                // This is harder in JSON. The 'rules' are typically separate logic objects.
-                // But often the JSON dump from BS includes them inline or referenced?
-                // In the provided JSON, rules are under 'rules' array in selections.
-                // But we only have 'itemData' here. We might need access to global rules or pass them down?
-                // For now, let's just create tags without descriptions or simple ones.
-                // Wait, `_importWTag` in XML uses `xml.querySelector("rules")`. 
-                // For JSON, do we have rules nearby?
-                // We processed rules separately. 
-                // Let's just add the Item wtags.
-
-                for (const tag of tags) {
-                    // For now we skip description lookup as it requires traversing the whole JSON for rule definitions by ID usually
-                    // Or they are attached to the selection.
-                    let tagData = {
-                        name: tag,
-                        type: "wtag",
-                        system: { value: "" } // Parse value if needed (e.g. Anti-Vehicle 4+)
+            // Is it a Profile?
+            if (itemData.typeName) {
+                if (itemData.typeName === "Abilities") {
+                    let desc = itemData.characteristics.find(c => c.name === "Description")?.$text || "";
+                    let data = {
+                        name: itemData.name,
+                        type: "ability",
+                        system: { description: desc }
                     };
-                    let valueRegx = new RegExp(/(\D+)(\d+.*)?/)
-                    let match = tag.match(valueRegx)
-                    if (match) {
-                        tagData.name = match[1].trim();
-                        tagData.system.value = match[2]?.trim();
-                        if (OPTIONAL_TAGS.includes(tagData.name.toUpperCase())) tagData.system.optional = true;
+
+                    if (data.name === "Invulnerable Save") {
+                        await ActiveEffect.create({
+                            label: data.name,
+                            changes: [{
+                                key: 'system.invulnsave',
+                                value: desc.match(/(\d)+/)[1],
+                                mode: 5,
+                            }]
+                        }, { parent: actor })
+                        return
                     }
 
-                    // Try to find description? 
-                    // For now, leave empty.
-                    let tItem = await Item.create(tagData, { parent: actor });
-                    data.system.tags.push(tItem.id);
+                    await Item.create(data, { parent: actor });
                 }
+                else if (itemData.typeName.endsWith("Weapons")) {
+                    let data = {
+                        name: itemData.name,
+                        type: "weapon",
+                        system: {}
+                    };
 
-                await Item.create(data, { parent: actor });
+                    let getChar = (n) => itemData.characteristics.find(c => c.name === n)?.$text || "0";
+
+                    data.system.range = getChar('Range').replace("\"", '').replace("Melee", '0');
+                    data.system.attacks = getChar('A').replace(/(?:\D|^)D(\d)/, ' 1D$1');
+                    data.system.skill = getChar('BS') === "N/A" ? getChar('WS').replace("+", '') : getChar('BS').replace("+", '');
+                    if (data.system.skill === "0") data.system.skill = getChar('WS').replace("+", ''); // Fallback if BS was N/A but WS exists or vice versa check logic
+
+                    // Actually looking at XML logic:
+                    // querySelector("characteristic[name='BS'], characteristic[name='WS']")
+                    // It picks the first one found ? 
+                    // In JSON we have implicit names.
+                    // Ranged has BS, Melee has WS.
+                    // Let's rely on typeName or just check both.
+                    let bs = itemData.characteristics.find(c => c.name === "BS");
+                    let ws = itemData.characteristics.find(c => c.name === "WS");
+                    let val = (bs && bs.$text !== "N/A") ? bs.$text : (ws ? ws.$text : "0");
+                    data.system.skill = val.replace("+", '');
+
+                    data.system.strength = getChar('S');
+                    data.system.ap = getChar('AP');
+                    data.system.damage = getChar('D').replace(/(?:\D|^)D(\d)/, ' 1D$1');
+
+                    let tagsStr = getChar('Keywords');
+                    let tags = tagsStr.replace(/(?:\D|^)D(\d)/, ' 1D$1').replace("+", '').split(",");
+                    tags = tags.map(i => i.trim()).filter(i => i && i !== "-");
+
+                    data.system.tags = [];
+
+                    // We need rules for tags to find descriptions.
+                    // This is harder in JSON. The 'rules' are typically separate logic objects.
+                    // But often the JSON dump from BS includes them inline or referenced?
+                    // In the provided JSON, rules are under 'rules' array in selections.
+                    // But we only have 'itemData' here. We might need access to global rules or pass them down?
+                    // For now, let's just create tags without descriptions or simple ones.
+                    // Wait, `_importWTag` in XML uses `xml.querySelector("rules")`. 
+                    // For JSON, do we have rules nearby?
+                    // We processed rules separately. 
+                    // Let's just add the Item wtags.
+
+                    for (const tag of tags) {
+                        // For now we skip description lookup as it requires traversing the whole JSON for rule definitions by ID usually
+                        // Or they are attached to the selection.
+                        let tagData = {
+                            name: tag,
+                            type: "wtag",
+                            system: { value: "" } // Parse value if needed (e.g. Anti-Vehicle 4+)
+                        };
+                        let valueRegx = new RegExp(/(\D+)(\d+.*)?/)
+                        let match = tag.match(valueRegx)
+                        if (match) {
+                            tagData.name = match[1].trim();
+                            tagData.system.value = match[2]?.trim();
+                            if (OPTIONAL_TAGS.includes(tagData.name.toUpperCase())) tagData.system.optional = true;
+                        }
+
+                        // Try to find description? 
+                        // For now, leave empty.
+                        let tItem = await Item.create(tagData, { parent: actor });
+                        data.system.tags.push(tItem.id);
+                    }
+
+                    await Item.create(data, { parent: actor });
+                }
             }
-        }
 
-    } catch (e) {
-        console.error("Error importing JSON item", e);
+        } catch (e) {
+            console.error("Error importing JSON item", e);
+        }
     }
-}
 }
