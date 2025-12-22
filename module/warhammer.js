@@ -280,8 +280,10 @@ Hooks.on('renderActorDirectory', (app, html, data) => {
     //return early if user isn't a gm (and thus can't create folders, which the importer does)
     if (!game.user.isGM) return
 
+    console.log("Warhammer 40k | Hook renderActorDirectory fired");
     let actions = html.find('.action-buttons');
     if (!actions.length) actions = html.find('.header-actions');
+    console.log("Warhammer 40k | Found actions container:", actions.length);
 
     actions.append("<button class='import-roster'><i class=\"fas fa-file-import\"></i> Import Roster</button>");
     let d = new Dialog({
