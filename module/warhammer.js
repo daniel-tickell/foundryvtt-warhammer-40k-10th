@@ -286,14 +286,32 @@ Hooks.on('renderActorDirectory', (app, html, data) => {
     if (!game.user.isGM) return
 
     console.log("Warhammer 40k | Hook renderActorDirectory fired");
-    let actions = html.find('.action-buttons');
+    
+    // Try multiple selectors to find the correct container for buttons
+    // V11+ often uses .header-actions.action-buttons, but it can vary by theme/module
+    let actions = html.find('.header-actions.action-buttons');
     if (!actions.length) actions = html.find('.header-actions');
+    if (!actions.length) actions = html.find('.action-buttons');
+    
+    // Fallback: directory header itself if we really can't find the buttons area
+    if (!actions.length) {
+        console.warn("Warhammer 40k | Specific action container not found. Trying .directory-header");
+        actions = html.find('.directory-header');
+    }
+
     console.log("Warhammer 40k | Found actions container:", actions.length);
 
-    actions.append("<button class='import-roster'><i class=\"fas fa-file-import\"></i> Import Roster</button>");
-    html.find('.import-roster').click(() => {
-        renderImportDialog()
-    })
+    if (actions.length) {
+        const btn = $(`<button class='import-roster'><i class="fas fa-file-import"></i> Import Roster</button>`);
+        actions.append(btn);
+        
+        btn.click((ev) => {
+            ev.preventDefault();
+            renderImportDialog();
+        });
+    } else {
+        console.error("Warhammer 40k | Failed to find a container to inject Import Roster button");
+    }
 });
 
 Hooks.on("getActorDirectoryFolderContext", (html, options) => {
