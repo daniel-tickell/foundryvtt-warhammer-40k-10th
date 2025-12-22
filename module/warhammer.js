@@ -291,7 +291,27 @@ Hooks.on('renderActorDirectory', (app, html, data) => {
     console.log("Warhammer 40k | Found actions container:", actions.length);
 
     actions.append("<button class='import-roster'><i class=\"fas fa-file-import\"></i> Import Roster</button>");
-    let d = new Dialog({
+    html.find('.import-roster').click(() => {
+        renderImportDialog()
+    })
+});
+
+Hooks.on("getActorDirectoryFolderContext", (html, options) => {
+    options.push({
+        name: "Import Roster",
+        icon: '<i class="fas fa-file-import"></i>',
+        callback: async (header) => {
+            // If we want to import INTO this folder, we would need to pass the folder ID to the importer.
+            // For now, the importer creates its own folder based on the roster name. 
+            // So executing the same global import is fine.
+            renderImportDialog();
+        },
+        condition: header => game.user.isGM
+    })
+})
+
+function renderImportDialog() {
+    new Dialog({
         title: "Roster Import",
         content: "<form autocomplete=\"off\" onsubmit=\"event.preventDefault();\">\n" +
             "    <p class=\"notes\">You may import a roster in the .ros format</p>\n" +
@@ -307,11 +327,6 @@ Hooks.on('renderActorDirectory', (app, html, data) => {
                     const { RosterImporter } = await import("./importer.js");
                     await RosterImporter.fetchBaseSizes();
                     ui.notifications.info("Base sizes updated from Wahapedia");
-                    // Re-render dialog to allow import immediately after? 
-                    // Or just close. User likely wants to import after.
-                    // For now, let's just update and close, but maybe we can keep it open or just rely on user re-opening.
-                    // Actually, if I close it, they have to click 'Import Roster' again.
-                    // A better UX might be to have this as a separate action or just let them re-open.
                 }
             },
             import: {
@@ -331,9 +346,5 @@ Hooks.on('renderActorDirectory', (app, html, data) => {
                 cssClass: "no"
             }
         }
-    })
-
-    html.find('.import-roster').click(() => {
-        d.render(true)
-    })
-});
+    }).render(true);
+}
