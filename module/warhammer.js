@@ -15,8 +15,10 @@ import "../libs/awesomplete/awesomplete.js"
 import { WarhammerObjectiveData } from "./actors/warhammerObjectiveData.js";
 import { WarhammerObjectiveSheet } from "./actors/objective-sheet.js";
 /* -------------------------------------------- */
+/* -------------------------------------------- */
 /*  Foundry VTT Initialization                  */
 /* -------------------------------------------- */
+console.log("Warhammer 40k | System Module Loading...");
 /**
  * Init hook.
  */
@@ -86,7 +88,10 @@ Hooks.once('init', function () {
     CONFIG.Combat.initiative = {
         formula: '1d6',
         decimals: 2,
-    };    // Register sheet application classes
+    };
+    // Register sheet application classes
+    const Actors = foundry.documents.collections.Actors;
+    const Items = foundry.documents.collections.Items;
     Actors.unregisterSheet("core", ActorSheet);
     Actors.registerSheet(SYSTEM_ID, WarhammerModelSheet, { types: ["model"], makeDefault: true });
     Actors.registerSheet(SYSTEM_ID, WarhammerObjectiveSheet, { types: ["objective"], makeDefault: true });
@@ -286,47 +291,75 @@ Hooks.on('renderActorDirectory', (app, html, data) => {
     if (!game.user.isGM) return
 
     console.log("Warhammer 40k | Hook renderActorDirectory fired");
-    
+    const $html = $(html);
+    console.log("Warhammer 40k | Directory HTML classes:", $html[0]?.className);
+
     // Try multiple selectors to find the correct container for buttons
-    // V11+ often uses .header-actions.action-buttons, but it can vary by theme/module
-    let actions = html.find('.header-actions.action-buttons');
-    if (!actions.length) actions = html.find('.header-actions');
-    if (!actions.length) actions = html.find('.action-buttons');
-    
+    let actions = $html.find('.header-actions.action-buttons');
+    if (!actions.length) actions = $html.find('.header-actions');
+    if (!actions.length) actions = $html.find('.action-buttons');
+
     // Fallback: directory header itself if we really can't find the buttons area
     if (!actions.length) {
-        console.warn("Warhammer 40k | Specific action container not found. Trying .directory-header");
-        actions = html.find('.directory-header');
+        console.warn("Warhammer 40k | Specific action container not found. Checking .directory-header");
+        const dirHeader = $html.find('.directory-header');
+        if (dirHeader.length) {
+            console.log("Warhammer 40k | Found .directory-header, creating a container.");
+            // Create a container if it doesn't exist, to keep things tidy
+            actions = $(`<div class="header-actions action-buttons flexrow"></div>`);
+            dirHeader.append(actions);
+        }
     }
 
-    console.log("Warhammer 40k | Found actions container:", actions.length);
+    console.log("Warhammer 40k | Final actions container length:", actions.length);
 
     if (actions.length) {
         const btn = $(`<button class='import-roster'><i class="fas fa-file-import"></i> Import Roster</button>`);
-        actions.append(btn);
-        
+
+        // Avoid duplicate buttons if the hook fires multiple times
+        if (actions.find('.import-roster').length === 0) {
+            actions.append(btn);
+            btn.click((ev) => {
+                ev.preventDefault();
+                renderImportDialog();
+            });
+            console.log("Warhammer 40k | Import Roster button injected successfully.");
+        } else {
+            console.log("Warhammer 40k | Import Roster button already exists.");
+        }
+
+        const updateBtn = $(`<button class='update-sizes'><i class="fas fa-ruler-combined"></i> Update Base Sizes</button>`);
+        if (actions.find('.update-sizes').length === 0) {
+            actions.append(updateBtn);
+            updateBtn.click((ev) => {
+                ev.preventDefault();
+                Dialog.confirm({
+                    title: "Update All Base Sizes",
+                    content: "<p>This will iterate through <strong>ALL</strong> actors in your world and attempt to update their prototype token sizes based on their name using Wahapedia data.<br><br>Are you sure you want to continue?</p>",
+                    yes: async () => {
+                        const { RosterImporter } = await import("./importer.js");
+                        RosterImporter.updateAllBaseSizes();
+                    },
+                    defaultYes: false
+                });
+            });
+            console.log("Warhammer 40k | Update Base Sizes button injected successfully.");
+        }
+
+    } else {
+        console.error("Warhammer 40k | Failed to find OR create a container to inject Import Roster button");
+        // Last ditch effort: Inject directly into the main html container
+        console.warn("Warhammer 40k | Attempting last-ditch injection into root.");
+        const btn = $(`<button class='import-roster'><i class="fas fa-file-import"></i> Import Roster</button>`);
+        $html.prepend(btn);
         btn.click((ev) => {
             ev.preventDefault();
             renderImportDialog();
         });
-    } else {
-        console.error("Warhammer 40k | Failed to find a container to inject Import Roster button");
     }
 });
 
-Hooks.on("getActorDirectoryFolderContext", (html, options) => {
-    options.push({
-        name: "Import Roster",
-        icon: '<i class="fas fa-file-import"></i>',
-        callback: async (header) => {
-            // If we want to import INTO this folder, we would need to pass the folder ID to the importer.
-            // For now, the importer creates its own folder based on the roster name. 
-            // So executing the same global import is fine.
-            renderImportDialog();
-        },
-        condition: header => game.user.isGM
-    })
-})
+
 
 function renderImportDialog() {
     new Dialog({

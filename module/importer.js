@@ -158,7 +158,7 @@ export class RosterImporter {
             data.system.description = xml.querySelector("characteristic[name='Description']").firstChild.textContent
             if (data.name === "Invulnerable Save") {
                 await ActiveEffect.create({
-                    label: data.name,
+                    name: data.name,
                     changes: [{
                         key: 'system.invulnsave',
                         //NOTE make this less fragile at some point
@@ -249,9 +249,9 @@ export class RosterImporter {
     static async fetchBaseSizes() {
         try {
             // Direct fetch from Wahapedia. Note: This may require a proxy or browser extension if CORS is enforced by the browser. 
-            // In Foundry's Electron app, it often passes. If not, we might need a workaround.
-            const response = await fetch("https://wahapedia.ru/wh40k10ed/Datasheets_models.csv");
-            if (!response.ok) throw new Error("Network response was not ok");
+            // In Foundry's Electron app, it often passes.
+            const response = await fetch("https://corsproxy.io/?https://wahapedia.ru/wh40k10ed/Datasheets_models.csv");
+            if (!response.ok) throw new Error("Failed to fetch base sizes");
             const text = await response.text();
 
             const lines = text.split(/\r?\n/);
@@ -438,52 +438,53 @@ export class RosterImporter {
                 data.system.stats.control = getChar('OC');
             }
 
-        }
 
-        // Apply Base Size
-        let size = this.getBaseSize(name);
-        if (size) {
-            data.prototypeToken = {
-                width: size.width,
-                height: size.height
+
+            // Apply Base Size
+            let size = this.getBaseSize(name);
+            if (size) {
+                data.prototypeToken = {
+                    width: size.width,
+                    height: size.height
+                };
+            }
+
+            let actor = await Actor.create(data);
+
+            // Import Rules / Abilities / Weapons
+            // These can be on the model, or the parent unit.
+            // We should check both.
+
+            let itemsToImport = [];
+
+            // Helper to collect items recursively
+            let collectItems = (sel) => {
+                if (sel.profiles) itemsToImport.push(...sel.profiles);
+                if (sel.rules) itemsToImport.push(...sel.rules);
+                if (sel.selections) sel.selections.forEach(collectItems);
             };
-        }
 
-        let actor = await Actor.create(data);
+            // Collect from unit (excluding other models if possible? No, usually rules on unit apply to all)
+            // But we don't want weapons from other models.
+            // The JSON structure is tricky. 
+            // Unit -> Selections -> Model -> Selections -> Weapons
+            // So if we process 'modelData', we get its specific weapons.
+            // We also want 'abilities' from the parent Unit.
 
-        // Import Rules / Abilities / Weapons
-        // These can be on the model, or the parent unit.
-        // We should check both.
+            // 1. Items from Model
+            collectItems(modelData);
 
-        let itemsToImport = [];
+            // 2. Items from Parent Unit (but be careful not to include sibling models' weapons)
+            // We can manually pick rules/abilities from parent
+            if (selectionData !== modelData) {
+                if (selectionData.profiles) itemsToImport.push(...selectionData.profiles);
+                if (selectionData.rules) itemsToImport.push(...selectionData.rules);
+                // We do NOT recurse into selectionData.selections because those are likely other models or upgrades handled within model
+            }
 
-        // Helper to collect items recursively
-        let collectItems = (sel) => {
-            if (sel.profiles) itemsToImport.push(...sel.profiles);
-            if (sel.rules) itemsToImport.push(...sel.rules);
-            if (sel.selections) sel.selections.forEach(collectItems);
-        };
-
-        // Collect from unit (excluding other models if possible? No, usually rules on unit apply to all)
-        // But we don't want weapons from other models.
-        // The JSON structure is tricky. 
-        // Unit -> Selections -> Model -> Selections -> Weapons
-        // So if we process 'modelData', we get its specific weapons.
-        // We also want 'abilities' from the parent Unit.
-
-        // 1. Items from Model
-        collectItems(modelData);
-
-        // 2. Items from Parent Unit (but be careful not to include sibling models' weapons)
-        // We can manually pick rules/abilities from parent
-        if (selectionData !== modelData) {
-            if (selectionData.profiles) itemsToImport.push(...selectionData.profiles);
-            if (selectionData.rules) itemsToImport.push(...selectionData.rules);
-            // We do NOT recurse into selectionData.selections because those are likely other models or upgrades handled within model
-        }
-
-        for (const item of itemsToImport) {
-            await this._importJSONItem(item, actor);
+            for (const item of itemsToImport) {
+                await this._importJSONItem(item, actor);
+            }
         }
     }
 
@@ -531,7 +532,7 @@ export class RosterImporter {
 
                     if (data.name === "Invulnerable Save") {
                         await ActiveEffect.create({
-                            label: data.name,
+                            name: data.name,
                             changes: [{
                                 key: 'system.invulnsave',
                                 value: desc.match(/(\d)+/)[1],
@@ -617,6 +618,84 @@ export class RosterImporter {
 
         } catch (e) {
             console.error("Error importing JSON item", e);
+        }
+    }
+
+    static async updateFolderBaseSizes(folder) {
+        try {
+            // 1. Ensure we have base sizes
+            let sizes = game.settings.get(SYSTEM_ID, "baseSizes");
+            if (!sizes || Object.keys(sizes).length === 0) {
+                ui.notifications.info("Fetching base sizes from Wahapedia...");
+                await this.fetchBaseSizes();
+            }
+
+            // 2. Get Actors in folder
+            const actors = folder.contents;
+            if (!actors || actors.length === 0) {
+                ui.notifications.warn("No actors found in folder " + folder.name);
+                return;
+            }
+
+            let updatedCount = 0;
+            for (const actor of actors) {
+                const size = this.getBaseSize(actor.name);
+                if (size) {
+                    await actor.update({
+                        prototypeToken: {
+                            width: size.width,
+                            height: size.height
+                        }
+                    });
+                    console.log(`Warhammer 40k | Updated ${actor.name} to ${size.width}x${size.height}`);
+                    updatedCount++;
+                }
+            }
+
+            ui.notifications.info(`Updated base sizes for ${updatedCount} / ${actors.length} actors in "${folder.name}".`);
+
+        } catch (e) {
+            console.error("Error updating folder base sizes:", e);
+            ui.notifications.error("Failed to update base sizes: " + e.message);
+        }
+    }
+
+    static async updateAllBaseSizes() {
+        try {
+            // 1. Ensure we have base sizes
+            let sizes = game.settings.get(SYSTEM_ID, "baseSizes");
+            if (!sizes || Object.keys(sizes).length === 0) {
+                ui.notifications.info("Fetching base sizes from Wahapedia...");
+                await this.fetchBaseSizes();
+            }
+
+            // 2. Get All Actors
+            const actors = game.actors;
+            if (!actors || actors.size === 0) {
+                ui.notifications.warn("No actors found.");
+                return;
+            }
+
+            let updatedCount = 0;
+            for (const actor of actors) {
+                const size = this.getBaseSize(actor.name);
+                if (size) {
+                    await actor.update({
+                        prototypeToken: {
+                            width: size.width,
+                            height: size.height
+                        }
+                    });
+                    console.log(`Warhammer 40k | Updated ${actor.name} to ${size.width}x${size.height}`);
+                    updatedCount++;
+                }
+            }
+
+            ui.notifications.info(`Updated base sizes for ${updatedCount} / ${actors.size} actors.`);
+
+        } catch (e) {
+            console.error("Error updating all base sizes:", e);
+            ui.notifications.error("Failed to update base sizes: " + e.message);
         }
     }
 }
