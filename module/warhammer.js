@@ -401,3 +401,180 @@ function renderImportDialog() {
         }
     }).render(true);
 }
+
+// Phase HUD Integration
+Hooks.once("ready", async () => {
+    // Dynamically import the class to avoid circular dependencies if any
+    const { PhaseHUD } = await import("./apps/phase-hud.js");
+    game.phaseHUD = new PhaseHUD();
+
+    // Hook to show/hide
+    Hooks.on("controlToken", (token, controlled) => {
+        if (controlled) {
+            // Only show if we have permission
+            if (token.actor && token.actor.testUserPermission(game.user, "OWNER")) {
+                game.phaseHUD.setToken(token);
+            }
+        } else {
+            // If we deselected, check if we have ANY controlled tokens
+            const supervised = canvas.tokens.controlled.filter(t => t.actor && t.actor.testUserPermission(game.user, "OWNER"));
+            if (supervised.length > 0) {
+                game.phaseHUD.setToken(supervised[0]);
+            } else {
+                game.phaseHUD.setToken(null);
+            }
+        }
+    });
+
+    // Hook updates to refresh if open
+    Hooks.on("updateActor", (actor) => {
+        if (game.phaseHUD.token && game.phaseHUD.token.actor === actor) game.phaseHUD.render(false);
+    });
+
+    // Chat Message Listeners
+    Hooks.on("renderChatMessage", (message, html, data) => {
+        const $html = $(html); // Ensure jQuery object
+
+        // Roll Attacks Listener
+        $html.find(".roll-attacks").click(async (ev) => {
+            ev.preventDefault();
+            const btn = $(ev.currentTarget);
+            const attacksFormula = btn.data("attacks").toString();
+            const skill = parseInt(btn.data("skill")) || 6;
+            const strength = btn.data("strength");
+            const ap = btn.data("ap");
+            const damage = btn.data("damage");
+            const weaponName = btn.data("weapon");
+
+            // 1. Determine Number of Attacks
+            let numAttacks = 1;
+            try {
+                let attacksRoll = new Roll(attacksFormula);
+                await attacksRoll.evaluate();
+                numAttacks = attacksRoll.total;
+            } catch (e) {
+                console.warn("Failed to parse attacks:", attacksFormula);
+            }
+
+            // 2. Roll Hit Dice
+            let hitRoll = new Roll(`${numAttacks}d6`);
+            await hitRoll.evaluate();
+
+            // 3. Count Hits
+            let hits = 0;
+            let crits = 0;
+            const dice = hitRoll.terms.find(t => t.faces === 6);
+            if (dice) {
+                dice.results.forEach(r => {
+                    if (r.result >= skill || r.result === 6) hits++;
+                    if (r.result === 6) crits++;
+                });
+            }
+
+            // 4. Post Hit Result Card
+            const woundBtn = hits > 0 ? `
+                <button class="roll-wounds" 
+                    data-hits="${hits}" 
+                    data-strength="${strength}" 
+                    data-ap="${ap}" 
+                    data-damage="${damage}"
+                    data-weapon="${weaponName}">
+                    Roll Wounds <i class="fas fa-dice"></i>
+                </button>` : '';
+
+            ChatMessage.create({
+                speaker: ChatMessage.getSpeaker({ actor: message.speaker.actor }),
+                content: `
+                <div class="warhammer-roll">
+                    <h3>${weaponName}: Attack Roll</h3>
+                    <div class="stats">
+                        <span><strong>Attacks:</strong> ${numAttacks}</span>
+                        <span><strong>Skill:</strong> ${skill}+</span>
+                    </div>
+                    <hr>
+                     <div class="roll-summary" style="font-size: 1.2em; text-align: center; margin-top: 5px; margin-bottom: 5px;">
+                        <span style="color: green; font-weight: bold;">${hits} Hits</span>
+                        ${crits > 0 ? `<span style="color: darkorange; font-size: 0.8em;">(${crits} Crits)</span>` : ''}
+                    </div>
+                    <div class="dice-tooltip" style="font-size: 0.8em; color: #555;">${hitRoll.result}</div>
+                    ${woundBtn}
+                </div>`
+            });
+        });
+
+        // Roll Wounds Listener
+        $html.find(".roll-wounds").click(async (ev) => {
+            ev.preventDefault();
+            const btn = $(ev.currentTarget);
+            const hits = parseInt(btn.data("hits"));
+            const strength = parseInt(btn.data("strength"));
+            const ap = btn.data("ap");
+            const damage = btn.data("damage");
+            const weaponName = btn.data("weapon");
+
+            // 1. Get Target Toughness
+            let toughness = 4; // Default
+            let targetName = "Target";
+            const targets = game.user.targets;
+            if (targets.size > 0) {
+                const target = targets.first();
+                toughness = parseInt(target.actor?.system?.stats?.toughness) || 4;
+                targetName = target.name;
+            } else {
+                // Ask for toughness
+                const tInput = await new Promise(resolve => {
+                    new Dialog({
+                        title: "Target Toughness",
+                        content: `<div class="form-group"><label>Toughness:</label><input type="number" id="toughness" value="4" autofocus></div>`,
+                        buttons: {
+                            ok: { label: "Roll", callback: html => resolve(html.find("#toughness").val()) }
+                        },
+                        default: "ok"
+                    }).render(true);
+                });
+                toughness = parseInt(tInput) || 4;
+            }
+
+            // 2. Calculate To Wound Target
+            let targetNum = 4;
+            if (strength >= toughness * 2) targetNum = 2;
+            else if (strength > toughness) targetNum = 3;
+            else if (strength == toughness) targetNum = 4;
+            else if (strength <= toughness / 2) targetNum = 6;
+            else if (strength < toughness) targetNum = 5;
+
+            // 3. Roll Dice
+            const roll = await new Roll(`${hits}d6`).evaluate();
+            let wounds = 0;
+            roll.terms.find(t => t.faces === 6).results.forEach(r => {
+                if (r.result >= targetNum) wounds++;
+            });
+
+            // 4. Post Message
+            ChatMessage.create({
+                speaker: ChatMessage.getSpeaker({ actor: message.speaker.actor }), // Use same speaker
+                content: `
+                    <div class="warhammer-roll">
+                        <h3>Wound Roll vs ${targetName}</h3>
+                        <div class="stats">
+                            <span><strong>Weapon:</strong> ${weaponName}</span>
+                            <span><strong>S:</strong> ${strength} vs <strong>T:</strong> ${toughness}</span>
+                            <span><strong>Target:</strong> ${targetNum}+</span>
+                        </div>
+                        <hr>
+                        <div class="roll-summary" style="font-size: 1.2em; text-align: center; margin-top: 5px;">
+                            <span style="color: red; font-weight: bold;">${wounds} Wounds</span>
+                        </div>
+                        <div class="damage-info" style="margin-top: 5px; font-size: 0.9em; border-top: 1px solid #ccc; padding-top: 2px;">
+                            <strong>AP:</strong> ${ap} | <strong>Damage:</strong> ${damage}
+                            <br>Target needs to save!
+                        </div>
+                         <div class="dice-tooltip" style="margin-top:5px; font-size:0.8em; color:#666;">
+                            Rolling ${hits}d6: ${roll.result}
+                        </div>
+                    </div>
+                `
+            });
+        });
+    });
+});

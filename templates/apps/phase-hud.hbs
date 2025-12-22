@@ -1,0 +1,80 @@
+<div class="phase-hud-container">
+    <nav class="sheet-tabs tabs" data-group="primary">
+        <a class="item" data-tab="movement"><i class="fas fa-person-walking"></i> Move</a>
+        <a class="item" data-tab="shooting"><i class="fas fa-crosshairs"></i> Shoot</a>
+        <a class="item" data-tab="charge"><i class="fas fa-bolt"></i> Charge</a>
+        <a class="item" data-tab="fight"><i class="fas fa-fist-raised"></i> Fight</a>
+    </nav>
+
+    <section class="content">
+        <!-- Movement Tab -->
+        <div class="tab" data-tab="movement" data-group="primary">
+            <div class="stat-box">
+                <span class="label">Move Characteristic:</span>
+                <span class="value">{{stats.move}}"</span>
+            </div>
+            
+            <div class="actions">
+                <button class="phase-action" data-action="advance">
+                    <i class="fas fa-forward"></i> Advance (D6 + {{stats.move}}")
+                </button>
+                <button class="phase-action" data-action="fallback">
+                    <i class="fas fa-backward"></i> Fall Back
+                </button>
+            </div>
+        </div>
+
+        <!-- Shooting Tab -->
+        <div class="tab" data-tab="shooting" data-group="primary">
+            <h4>Ranged Weapons</h4>
+            <div class="weapon-list">
+                {{#each rangedWeapons}}
+                <div class="weapon-item flexrow">
+                    <img src="{{img}}" title="{{name}}" width="24" height="24"/>
+                    <span class="weapon-name">{{name}}</span>
+                    <span class="weapon-stats">
+                        R:{{system.range}}" A:{{system.attacks}} S:{{system.strength}} AP:{{system.ap}} D:{{system.damage}}
+                    </span>
+                    <a class="roll-weapon" data-item-id="{{_id}}"><i class="fas fa-dice-d20"></i></a>
+                </div>
+                {{else}}
+                <p>No Ranged Weapons</p>
+                {{/each}}
+            </div>
+        </div>
+
+        <!-- Charge Tab -->
+        <div class="tab" data-tab="charge" data-group="primary">
+             <div class="actions">
+                <button class="phase-action" data-action="charge">
+                    <i class="fas fa-bolt"></i> Charge Roll (2D6)
+                </button>
+            </div>
+             <p class="notes">Target must be within 12"</p>
+        </div>
+
+        <!-- Fight Tab -->
+        <div class="tab" data-tab="fight" data-group="primary">
+            <div class="actions flexrow">
+                <button class="phase-action" data-action="pilein">Pile In (3")</button>
+                <button class="phase-action" data-action="consolidate">Consolidate (3")</button>
+            </div>
+
+            <h4>Melee Weapons</h4>
+            <div class="weapon-list">
+                {{#each meleeWeapons}}
+                <div class="weapon-item flexrow">
+                    <img src="{{img}}" title="{{name}}" width="24" height="24"/>
+                    <span class="weapon-name">{{name}}</span>
+                    <span class="weapon-stats">
+                        A:{{system.attacks}} WS:{{system.skill}}+ S:{{system.strength}} AP:{{system.ap}} D:{{system.damage}}
+                    </span>
+                    <a class="roll-weapon" data-item-id="{{_id}}"><i class="fas fa-dice-d20"></i></a>
+                </div>
+                {{else}}
+                <p>No Melee Weapons</p>
+                {{/each}}
+            </div>
+        </div>
+    </section>
+</div>
