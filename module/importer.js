@@ -445,8 +445,11 @@ export class RosterImporter {
             if (size) {
                 data.prototypeToken = {
                     width: size.width,
-                    height: size.height
+                    height: size.height,
+                    actorLink: false
                 };
+            } else {
+                data.prototypeToken = { actorLink: false };
             }
 
             let actor = await Actor.create(data);

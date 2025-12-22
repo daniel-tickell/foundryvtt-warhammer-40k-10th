@@ -1,8 +1,8 @@
-import {WeaponData} from "../items/weaponData.js";
+import { WeaponData } from "../items/weaponData.js";
 
 class SplitStringField extends foundry.data.fields.StringField {
     initialize(value, model) {
-        return (value||"").split(",").map(x => x.trim());
+        return (value || "").split(",").map(x => x.trim());
     }
 
 }
@@ -32,23 +32,23 @@ class WarhammerModifiersField extends foundry.data.fields.SchemaField {
         super(foundry.utils.mergeObject({
             hitroll: new fields.SchemaField({
                 melee: new fields.SchemaField({
-                        bonus: new fields.NumberField({
-                            required: false,
-                            nullable: true,
-                            integer: true,
-                        }),
-                        reroll: new fields.ArrayField(new fields.StringField({required: false}), {required:false, nullable:false, initial:[]}),
-                        crit: new fields.ArrayField(new fields.StringField({required: false}), {required:false, initial:["6"]}),
-
+                    bonus: new fields.NumberField({
+                        required: false,
+                        nullable: true,
+                        integer: true,
                     }),
+                    reroll: new fields.ArrayField(new fields.StringField({ required: false }), { required: false, nullable: false, initial: [] }),
+                    crit: new fields.ArrayField(new fields.StringField({ required: false }), { required: false, initial: ["6"] }),
+
+                }),
                 ranged: new fields.SchemaField({
                     bonus: new fields.NumberField({
                         required: false,
                         nullable: true,
                         integer: true,
                     }),
-                    reroll: new fields.ArrayField(new fields.StringField({required: false}), {required:false, nullable:false, initial:[]}),
-                    crit: new fields.ArrayField(new fields.StringField({required: false}), {required:false, initial:["6"]}),
+                    reroll: new fields.ArrayField(new fields.StringField({ required: false }), { required: false, nullable: false, initial: [] }),
+                    crit: new fields.ArrayField(new fields.StringField({ required: false }), { required: false, initial: ["6"] }),
                 }),
             }),
             woundroll: new fields.SchemaField({
@@ -57,8 +57,8 @@ class WarhammerModifiersField extends foundry.data.fields.SchemaField {
                     nullable: true,
                     integer: true,
                 }),
-                reroll: new fields.ArrayField(new fields.StringField({required: false}), {required:false, nullable:false, initial:[]}),
-                crit: new fields.ArrayField(new fields.StringField({required: false}), {required:false, initial:["6"]}),
+                reroll: new fields.ArrayField(new fields.StringField({ required: false }), { required: false, nullable: false, initial: [] }),
+                crit: new fields.ArrayField(new fields.StringField({ required: false }), { required: false, initial: ["6"] }),
             }),
             cover: new fields.BooleanField({
                 required: false,
