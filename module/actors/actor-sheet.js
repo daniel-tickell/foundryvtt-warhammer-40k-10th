@@ -1,5 +1,5 @@
-import {FACTIONS, getBaseToBaseDist, mmToInch, SYSTEM_ID} from "../constants.js";
-import {WarhammerActor} from "./actor.js";
+import { FACTIONS, getBaseToBaseDist, mmToInch, SYSTEM_ID } from "../constants.js";
+import { WarhammerActor } from "./actor.js";
 
 /**
  * Extend the basic ActorSheet with some very simple modifications
@@ -30,7 +30,7 @@ export class WarhammerModelSheet extends ActorSheet {
         context.FACTIONS = FACTIONS
         let factionSelectOptions = []
         for (const key in FACTIONS) {
-            factionSelectOptions.push({key:key, value: key});
+            factionSelectOptions.push({ key: key, value: key });
         }
         context.factionSelectOptions = factionSelectOptions
         // Use a safe clone of the actor data for further operations.
@@ -64,7 +64,7 @@ export class WarhammerModelSheet extends ActorSheet {
         // Add roll data for TinyMCE editors.
         context.rollData = context.actor.getRollData();
         context.enriched = {};
-        context.enriched.biography = await TextEditor.enrichHTML(actorData.biography, {async: true})
+        context.enriched.biography = await TextEditor.enrichHTML(actorData.biography, { async: true })
 
         // context.CONFIG = CONFIG
         return context;
@@ -79,11 +79,11 @@ export class WarhammerModelSheet extends ActorSheet {
      */
     _prepareItems(context) {
         // Initialize containers.
-        let weapons ={
-            melee:[],
+        let weapons = {
+            melee: [],
             ranged: []
         }
-        let abil= []
+        let abil = []
 
         // Iterate through items, allocating to containers
         for (let i of context.items) {
@@ -144,10 +144,10 @@ export class WarhammerModelSheet extends ActorSheet {
 
         html.find('.effect-create').click(this._onEffectCreate.bind(this));
         html.find('.effect-enable').click(ev => {
-            ActiveEffect.updateDocuments([{_id: ev.currentTarget.dataset.itemid, disabled: false}], {parent: this.actor})
+            ActiveEffect.updateDocuments([{ _id: ev.currentTarget.dataset.itemid, disabled: false }], { parent: this.actor })
         });
         html.find('.effect-disable').click(ev => {
-            ActiveEffect.updateDocuments([{_id: ev.currentTarget.dataset.itemid, disabled: true}], {parent: this.actor})
+            ActiveEffect.updateDocuments([{ _id: ev.currentTarget.dataset.itemid, disabled: true }], { parent: this.actor })
         });
         html.find('.effect-delete').click(ev => {
             const item = this.actor.effects.get(ev.currentTarget.dataset.itemid);
@@ -182,7 +182,7 @@ export class WarhammerModelSheet extends ActorSheet {
         // Remove the type from the dataset since it's in the itemData.type prop.
         delete itemData.system["type"];
 
-        return Item.create(itemData, {parent: this.actor});
+        return Item.create(itemData, { parent: this.actor });
     }
     async _onEffectCreate(event) {
         event.preventDefault();
@@ -199,13 +199,13 @@ export class WarhammerModelSheet extends ActorSheet {
             system: system
         };
         if (type === "temporary")
-            itemData.duration = {seconds: 60}
+            itemData.duration = { seconds: 60 }
         if (type === "inactive")
             itemData.disabled = true
         // Remove the type from the dataset since it's in the itemData.type prop.
         delete itemData.system["type"];
 
-        return ActiveEffect.create(itemData, {parent: this.actor});
+        return ActiveEffect.create(itemData, { parent: this.actor });
     }
     //TODO recheck this later
     /**
@@ -215,125 +215,13 @@ export class WarhammerModelSheet extends ActorSheet {
      */
     async _onRoll(event) {
         event.preventDefault();
-        let controlled = canvas.tokens.controlled
-
-        //add sheets token if nothing else is selected
-        if (controlled.length === 0 && this.actor.token?._object) {
-            controlled.push(this.actor.token._object)
-        }
-        if (controlled.length === 0) {
-            ui.notifications.error("Aborting Attack: No tokens selected");
-            return
-        }
         const element = event.currentTarget;
         const dataset = element.dataset;
-        //TODO find a less stupid way to clone: deepClone(doesn't clone) and duplicate(doesn't copy modified values) don't work
-        const weapon = this.actor.items.get(dataset.documentId)
-        let weaponData = foundry.utils.expandObject(foundry.utils.flattenObject(weapon.system))
-        weaponData.name = weapon.name
-        let actorData = foundry.utils.expandObject(foundry.utils.flattenObject(this.actor.system))
+        const documentId = dataset.documentId;
 
-        weaponData.items = []
-        for (let tagid of weapon.system.tags) {
-            let tag = this.actor.items.get(tagid)
-            weaponData.items.push(tag)
+        if (documentId) {
+            this.actor.rollWeapon(documentId);
         }
-        weaponData.tagstring = weapon.getTagstring()
-
-        const targeted = game.user.targets;
-
-
-        //selected and targeted must make sense
-        if (targeted.length === 0) {
-            ui.notifications.error("Aborting Attack: No targets selected");
-            return
-        }
-
-        for (const target of targeted) {
-            //actor could be null if the token is linked to a deleted actor, or the link was otherwise broken
-            if (!target.actor){
-                ui.notifications.error("Aborting Attack: Targeting token with invalid actor");
-                return
-            }
-            if (!target.actor.equals(targeted.first().actor)) {
-                ui.notifications.error("Aborting Attack: Targeting multiple actors with different stats");
-                return
-            }
-        }
-
-        //filter attackers: has weapon?
-        let tmp = controlled.filter( token => {
-            for (const item of token.actor.items) {
-                if (item.equals(weapon))
-                    return true
-            }
-        })
-        let noWeapon = controlled.filter(x => !tmp.includes(x));
-        controlled = tmp
-
-        if (controlled.length === 0) {
-            ui.notifications.error(`Aborting Attack: Cannot find ${weapon.name} among selected tokens`);
-            return
-        }
-
-        //filter attackers: in range?
-        tmp = weapon._inRange(controlled, targeted, weapon.system.range);
-        let outOfRange = controlled.filter(x => !tmp.includes(x));
-        controlled = tmp
-
-        if (controlled.length === 0) {
-            ui.notifications.error("Aborting Attack: No tokens in range to attack target");
-            return
-        }
-
-        let hitrollBonus;
-        if (weaponData.range !== 0){
-            hitrollBonus = targeted.first().actor.system.modifiers.grants.hitroll.ranged.bonus || this.actor.system.modifiers.hitroll.ranged.bonus
-        } else {
-            hitrollBonus = targeted.first().actor.system.modifiers.grants.hitroll.melee.bonus || this.actor.system.modifiers.hitroll.melee.bonus
-        }
-        let woundrollBonus = targeted.first().actor.system.modifiers.grants.woundroll.bonus || this.actor.system.modifiers.woundroll.bonus
-
-        let dialogHtml = Handlebars.partials[`systems/${SYSTEM_ID}/templates/attackdialog.hbs`]({
-            actor:this.actor,
-            shouldOverwatch:game.combat != null && this.actor.system.faction !== game.combat?.combatant?.actor.system.faction,
-            weapon:weaponData,
-            target:targeted.first(),
-            models: WarhammerActor.reduceToCount(controlled),
-            targets: WarhammerActor.reduceToCount(targeted),
-            hitrollBonus:hitrollBonus,
-            woundrollBonus:woundrollBonus,
-            dropped:{
-                attackers: {
-                    display: outOfRange?.length || noWeapon?.length,
-                    range:WarhammerActor.reduceToCount(outOfRange),
-                    weapon: WarhammerActor.reduceToCount(noWeapon),
-                }
-            }
-        })
-        let d = new Dialog({
-            title: "Attack Dialog",
-            content: dialogHtml,
-            buttons: {
-                one: {
-                    icon: '<i class="fas fa-check"></i>',
-                    label: "Continue",
-                    callback: (html) => {
-                        let modifiers = {
-                            hitroll: parseInt(html.find('input[name=hitroll]')[0].value) || 0 ,
-                            woundroll: parseInt(html.find('input[name=woundroll]')[0].value) || 0,
-                            cover: $.map(html.find('input[name=cover]:checked'),x => x.checked)[0],
-                            tags: $.map(html.find('input[name=optionaltags]:checked'),x => x.id),
-                            overwatch: $.map(html.find('input[name=overwatch]:checked'),x => x.checked)[0],
-                            overwatchValue: Math.max(Math.min(parseInt(html.find('input[name=overwatch-value]')[0].value) || 0, 6), 1),
-                        }
-                        weapon.fullAttack(controlled, targeted, weaponData, actorData, modifiers)
-                    }
-                },
-            },
-
-        });
-        d.render(true);
     }
 
 
@@ -344,7 +232,7 @@ export class WarhammerModelSheet extends ActorSheet {
         let data = await fromUuid(JSON.parse(event.dataTransfer.getData("text/plain")).uuid)
 
         //allow normal drop for anything else
-        if (data.type !== 'wtag'){
+        if (data.type !== 'wtag') {
             super._onDrop(event)
             return
         }
@@ -364,7 +252,7 @@ export class WarhammerModelSheet extends ActorSheet {
             system: data.system
         };
 
-        let newTag = await Item.create(itemData, {parent: this.actor});
+        let newTag = await Item.create(itemData, { parent: this.actor });
         let newTagList = target.system.tags
         newTagList.push(newTag._id)
         await target.update({
@@ -373,23 +261,23 @@ export class WarhammerModelSheet extends ActorSheet {
         this.render(true)
     }
 
-    _onDragStart(event){
+    _onDragStart(event) {
         let type = event.target.closest(".item")?.dataset.type
         let data
         switch (type) {
 
             case "Item":
-            data = {
-                type: 'Item',
-                uuid: this.actor.items.get(event.target.closest(".item")?.dataset.documentId).uuid,
-            }
-            break
+                data = {
+                    type: 'Item',
+                    uuid: this.actor.items.get(event.target.closest(".item")?.dataset.documentId).uuid,
+                }
+                break
 
             case "ActiveEffect":
-            data = {
-                type: 'ActiveEffect',
-                uuid: this.actor.effects.get(event.target.closest(".item")?.dataset.documentId).uuid,
-            }
+                data = {
+                    type: 'ActiveEffect',
+                    uuid: this.actor.effects.get(event.target.closest(".item")?.dataset.documentId).uuid,
+                }
 
         }
         event.dataTransfer.setData("text/plain", JSON.stringify(data))

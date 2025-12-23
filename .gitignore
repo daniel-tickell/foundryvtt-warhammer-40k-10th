@@ -11,5 +11,3 @@ warhammer-40k-10th.lock
 ._.gitignore
 ._*
 .DS_Store
-*.DS_Store*
-module/._.DS_Store

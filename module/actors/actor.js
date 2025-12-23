@@ -1,4 +1,4 @@
-import {FACTIONS, getBaseToBaseDist} from "../constants.js";
+import { FACTIONS, getBaseToBaseDist } from "../constants.js";
 
 /**
  * Extend the base Actor document to support attributes and groups with a custom template creation dialog.
@@ -13,7 +13,7 @@ export class WarhammerActor extends Actor {
         }
         super.prepareDerivedData();
     }
-    equals(item){
+    equals(item) {
         if (this.type != item?.type)
             return false;
 
@@ -23,9 +23,9 @@ export class WarhammerActor extends Actor {
         let itemSystem = foundry.utils.expandObject(foundry.utils.flattenObject(item.system))
         delete thisSystem.stats.wounds.value
         delete itemSystem.stats.wounds.value
-        return  JSON.stringify(thisSystem) === JSON.stringify(itemSystem)
+        return JSON.stringify(thisSystem) === JSON.stringify(itemSystem)
     }
-    static reduceToCount(list){
+    static reduceToCount(list) {
         let modelsTmp = list.reduce((acc, val) => {
             val = val.actor.name
             acc[val] = acc[val] === undefined ? 1 : acc[val] += 1;
@@ -40,23 +40,23 @@ export class WarhammerActor extends Actor {
         }
         return models
     }
-    generateCapturePercentages(){
+    generateCapturePercentages() {
         //group and total OC by faction
         let capture = this.system.tokens.map(id => canvas.tokens.get(id)).reduce((map, token) => {
-                if (!token.actor.system.stats.control > 0)
-                    return map;
-                let faction = token.actor.system.faction
-                if (map.has(faction))
-                    map.set(faction, map.get(faction) + token.actor.system.stats.control)
-                else
-                    map.set(faction, token.actor.system.stats.control)
-                return map
-            }, new Map())
+            if (!token.actor.system.stats.control > 0)
+                return map;
+            let faction = token.actor.system.faction
+            if (map.has(faction))
+                map.set(faction, map.get(faction) + token.actor.system.stats.control)
+            else
+                map.set(faction, token.actor.system.stats.control)
+            return map
+        }, new Map())
         //normalize
         capture = Array.from(capture)
-        let total = capture.reduce((acc, val) => acc+val[1], 0)
+        let total = capture.reduce((acc, val) => acc + val[1], 0)
         capture.map(val => val[1] /= total)
-        return capture.sort((a,b) => a[0] > b[0] ? -1 : 1)
+        return capture.sort((a, b) => a[0] > b[0] ? -1 : 1)
     }
     async updateObjective(token) {
         if (this.type !== "objective")
@@ -93,28 +93,61 @@ export class WarhammerActor extends Actor {
         }])
         await this.update({
             _id: this._id,
-            system:{
+            system: {
                 captured: max[0] !== "Uncaptured",
             }
         })
         token._refreshCapture()
     }
 
-    _applymodifiers(src, dest){
+    async rollWeapon(itemId) {
+        const item = this.items.get(itemId);
+        if (!item) return;
+
+        const system = item.system;
+        // Initial Chat Card with "Roll Attacks" button
+        ChatMessage.create({
+            speaker: ChatMessage.getSpeaker({ actor: this }),
+            content: `
+                <div class="warhammer-roll">
+                    <h3>${item.name}</h3>
+                    <div class="stats">
+                        <span><strong>Attacks:</strong> ${system.attacks}</span>
+                        <span><strong>Skill:</strong> ${system.skill}+</span>
+                        <span><strong>S:</strong> ${system.strength}</span>
+                        <span><strong>AP:</strong> ${system.ap}</span>
+                        <span><strong>D:</strong> ${system.damage}</span>
+                    </div>
+                    <hr>
+                    <button class="roll-attacks" 
+                        data-attacks="${system.attacks}"
+                        data-skill="${system.skill}" 
+                        data-strength="${system.strength}" 
+                        data-ap="${system.ap}" 
+                        data-damage="${system.damage}"
+                        data-weapon="${item.name}">
+                        Roll Attacks <i class="fas fa-dice"></i>
+                    </button>
+                </div>
+            `
+        });
+    }
+
+    _applymodifiers(src, dest) {
         if (!src)
             return
         for (const key in src) {
             // simple type
-            if (typeof src[key] !== "object"){
+            if (typeof src[key] !== "object") {
                 dest[key] = src[key]
                 continue
             }
             //ignore nulls
-            if (src[key] === null){
+            if (src[key] === null) {
                 continue
             }
             //append arrays
-            if (src[key] instanceof Array){
+            if (src[key] instanceof Array) {
                 if (src[key].length > 0)
                     dest[key].concat(src[key])
                 continue

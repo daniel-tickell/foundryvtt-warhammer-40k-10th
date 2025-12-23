@@ -460,16 +460,39 @@ Hooks.once("ready", async () => {
             let hitRoll = new Roll(`${numAttacks}d6`);
             await hitRoll.evaluate();
 
-            // 3. Count Hits
+            // 3. Count Hits and Format Dice
             let hits = 0;
             let crits = 0;
+            let diceHtml = '<div class="dice-row" style="display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; margin-bottom: 5px;">';
+
             const dice = hitRoll.terms.find(t => t.faces === 6);
             if (dice) {
                 dice.results.forEach(r => {
-                    if (r.result >= skill || r.result === 6) hits++;
-                    if (r.result === 6) crits++;
+                    const isCrit = r.result === 6;
+                    const isHit = r.result >= skill || isCrit;
+
+                    if (isHit) hits++;
+                    if (isCrit) crits++;
+
+                    const color = isCrit ? 'darkorange' : (isHit ? 'green' : '#777');
+                    const weight = isHit ? 'bold' : 'normal';
+                    const border = isHit ? '1px solid ' + color : '1px solid #ccc';
+
+                    diceHtml += `<span style="
+                        display: inline-block;
+                        width: 24px;
+                        height: 24px;
+                        line-height: 24px;
+                        text-align: center;
+                        border-radius: 4px;
+                        background: #f0f0f0;
+                        border: ${border};
+                        color: ${color};
+                        font-weight: ${weight};
+                    ">${r.result}</span>`;
                 });
             }
+            diceHtml += '</div>';
 
             // 4. Post Hit Result Card
             const woundBtn = hits > 0 ? `
@@ -496,7 +519,7 @@ Hooks.once("ready", async () => {
                         <span style="color: green; font-weight: bold;">${hits} Hits</span>
                         ${crits > 0 ? `<span style="color: darkorange; font-size: 0.8em;">(${crits} Crits)</span>` : ''}
                     </div>
-                    <div class="dice-tooltip" style="font-size: 0.8em; color: #555;">${hitRoll.result}</div>
+                    ${diceHtml}
                     ${woundBtn}
                 </div>`
             });
@@ -512,16 +535,24 @@ Hooks.once("ready", async () => {
             const damage = btn.data("damage");
             const weaponName = btn.data("weapon");
 
-            // 1. Get Target Toughness
-            let toughness = 4; // Default
+            // 1. Get Target Stats (Toughness & Save)
+            let toughness = 4;
+            let save = 7; // Default bad save if none found
+            let invuln = null; // Nullable
             let targetName = "Target";
+            let targetUuid = null;
             const targets = game.user.targets;
             if (targets.size > 0) {
                 const target = targets.first();
-                toughness = parseInt(target.actor?.system?.stats?.toughness) || 4;
+                const stats = target.actor?.system?.stats;
+                toughness = parseInt(stats?.toughness) || 4;
+                save = parseInt(stats?.save) || 7;
+                invuln = parseInt(target.actor?.system?.invulnsave) || null;
                 targetName = target.name;
+                targetUuid = target.document.uuid;
             } else {
-                // Ask for toughness
+                // Ask for toughness (fallback)
+                // We won't ask for Save here to keep it simple, straightforward flow is better
                 const tInput = await new Promise(resolve => {
                     new Dialog({
                         title: "Target Toughness",
@@ -551,6 +582,34 @@ Hooks.once("ready", async () => {
             });
 
             // 4. Post Message
+            const isVariableDamage = /[dD]/.test(damage);
+            let buttons = "";
+
+            // Variable Damage Button
+            if (isVariableDamage) {
+                buttons += `
+                <button class="roll-damage" data-damage="${damage}" data-weapon="${weaponName}">
+                    Roll Damage (${damage}) <i class="fas fa-dice"></i>
+                </button>`;
+            }
+
+            // Save Roll Button (if wounds > 0, and we have a target)
+            if (wounds > 0 && targetUuid) {
+                buttons += `
+                <button class="roll-saves" 
+                    data-wounds="${wounds}" 
+                    data-save="${save}" 
+                    data-invuln="${invuln || ''}" 
+                    data-ap="${ap}" 
+                    data-damage="${damage}"
+                    data-name="${targetName}"
+                    data-uuid="${targetUuid}">
+                    Roll Saves vs ${targetName} <i class="fas fa-shield-alt"></i>
+                </button>`;
+            } else if (wounds > 0) {
+                buttons += `<div style="font-size:0.8em; color: orange;">Select a target to enable Save Rolls</div>`;
+            }
+
             ChatMessage.create({
                 speaker: ChatMessage.getSpeaker({ actor: message.speaker.actor }), // Use same speaker
                 content: `
@@ -564,13 +623,191 @@ Hooks.once("ready", async () => {
                         <hr>
                         <div class="roll-summary" style="font-size: 1.2em; text-align: center; margin-top: 5px;">
                             <span style="color: red; font-weight: bold;">${wounds} Wounds</span>
+                            <span style="color: #555; font-size: 0.8em; margin-left: 5px;">(Dmg: ${damage})</span>
                         </div>
                         <div class="damage-info" style="margin-top: 5px; font-size: 0.9em; border-top: 1px solid #ccc; padding-top: 2px;">
-                            <strong>AP:</strong> ${ap} | <strong>Damage:</strong> ${damage}
-                            <br>Target needs to save!
+                            <strong>AP:</strong> ${ap}
                         </div>
                          <div class="dice-tooltip" style="margin-top:5px; font-size:0.8em; color:#666;">
                             Rolling ${hits}d6: ${roll.result}
+                        </div>
+                        ${buttons}
+                    </div>
+                `
+            });
+        });
+
+        // Roll Damage Listener
+        $html.find(".roll-damage").click(async (ev) => {
+            ev.preventDefault();
+            const btn = $(ev.currentTarget);
+            const damageFormula = btn.data("damage").toString();
+            const weaponName = btn.data("weapon");
+
+            const roll = await new Roll(damageFormula).evaluate();
+
+            roll.toMessage({
+                speaker: ChatMessage.getSpeaker({ actor: message.speaker.actor }),
+                flavor: `<strong>${weaponName}</strong> - Damage Roll (${damageFormula})`,
+            });
+        });
+
+        // Roll Saves Listener
+        $html.find(".roll-saves").click(async (ev) => {
+            ev.preventDefault();
+            const btn = $(ev.currentTarget);
+            const numWounds = parseInt(btn.data("wounds"));
+            const sv = parseInt(btn.data("save"));
+            const invulnData = btn.data("invuln");
+            const invuln = invulnData === "" ? null : parseInt(invulnData);
+            const ap = parseInt(btn.data("ap")) || 0; // AP is usually negative e.g. -1
+            const damage = btn.data("damage");
+            const targetName = btn.data("name");
+            const targetUuid = btn.data("uuid");
+
+            // Logic: Target Number = Sv - AP. (e.g. 3+ minus -1 AP = 4+).
+            // If Invuln is better (lower), use Invuln. Invuln is NOT modified by AP.
+
+            let modifiedSave = sv - ap;
+            let bestSave = modifiedSave;
+            let usedInvuln = false;
+
+            if (invuln !== null && invuln < bestSave) {
+                bestSave = invuln;
+                usedInvuln = true;
+            }
+
+            // Cap save at 6+? (A roll of 1 always fails). 
+            // In 10th, an unmodified 1 fails. Modified rolls can succeed if target is met.
+
+            // Roll Saves
+            const saveRoll = new Roll(`${numWounds}d6`);
+            await saveRoll.evaluate();
+
+            let failed = 0;
+            let saved = 0;
+            let diceHtml = '<div class="dice-row" style="display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; margin-bottom: 5px;">';
+
+            saveRoll.terms.find(t => t.faces === 6).results.forEach(r => {
+                const success = r.result >= bestSave; // Meet or beat
+                if (success && r.result > 1) { // 1 always fails? Yes, usually.
+                    saved++;
+                } else {
+                    failed++;
+                }
+                const color = (success && r.result > 1) ? 'green' : 'red';
+                const border = '1px solid ' + color;
+
+                diceHtml += `<span style="
+                        display: inline-block;
+                        width: 24px;
+                        height: 24px;
+                        line-height: 24px;
+                        text-align: center;
+                        border-radius: 4px;
+                        background: #f0f0f0;
+                        border: ${border};
+                        color: ${color};
+                        font-weight: bold;
+                    ">${r.result}</span>`;
+            });
+            diceHtml += '</div>';
+
+            const damageBtn = failed > 0 ? `
+                <button class="apply-damage" 
+                    data-uuid="${targetUuid}" 
+                    data-damage="${damage}" 
+                    data-failed="${failed}"
+                    data-name="${targetName}">
+                    Apply Damage <i class="fas fa-skull"></i>
+                </button>` : '';
+
+            ChatMessage.create({
+                speaker: ChatMessage.getSpeaker({ actor: message.speaker.actor }),
+                content: `
+                    <div class="warhammer-roll">
+                        <h3>Save Roll: ${targetName}</h3>
+                        <div class="stats">
+                             <span><strong>Sv:</strong> ${sv}+</span>
+                             <span><strong>AP:</strong> ${ap}</span>
+                             <span>${usedInvuln ? `<strong>Invuln:</strong> ${invuln}+ (Used)` : `<strong>Mod Sv:</strong> ${modifiedSave}+`}</span>
+                        </div>
+                        <hr>
+                        <div class="roll-summary" style="font-size: 1.2em; text-align: center; margin-top: 5px;">
+                            <span style="color: red; font-weight: bold;">${failed} FAILED</span>
+                            <span style="color: green; font-size: 0.8em; margin-left: 10px;">(${saved} Saved)</span>
+                        </div>
+                        <div class="damage-total" style="text-align: center; margin-top: 5px; font-weight: bold;">
+                             ${targetName} takes ${failed} x ${damage} Damage!
+                        </div>
+                        ${diceHtml}
+                        ${damageBtn}
+                    </div>
+                `
+            });
+        });
+
+        // Apply Damage Listener
+        $html.find(".apply-damage").click(async (ev) => {
+            ev.preventDefault();
+            const btn = $(ev.currentTarget);
+            const targetUuid = btn.data("uuid");
+            const damageFormula = btn.data("damage").toString();
+            const failed = parseInt(btn.data("failed"));
+            const targetName = btn.data("name");
+
+            const tokenDocument = await fromUuid(targetUuid);
+            const actor = tokenDocument?.actor || tokenDocument;
+
+            if (!actor) {
+                return ui.notifications.error("Target actor not found.");
+            }
+
+            let totalDamage = 0;
+            let rollDetails = "";
+
+            // Check if damage is variable
+            if (/[dD]/.test(damageFormula)) {
+                // Roll for EACH failed save
+                let formula = `${failed}*(${damageFormula})`; // e.g. 3 * (1d6)
+                // Actually in 40k it's technically sum of N rolls.
+                // 3d6 is effectively the same distrib as 1d6+1d6+1d6 for sum, so we can just roll `${failed}${damageFormula}`?
+                // Wait `31d6` vs `3 * 1D6`.
+                // If Dmg is "D6", we want `3d6`.
+                // If Dmg is "D3+1", we want `3d3 + 3`.
+                // Safe way: Loop
+
+                let rolls = [];
+                for (let i = 0; i < failed; i++) {
+                    let r = await new Roll(damageFormula).evaluate();
+                    totalDamage += r.total;
+                    rolls.push(r.total);
+                }
+                rollDetails = `Rolled: [${rolls.join(", ")}]`;
+
+            } else {
+                // Fixed damage
+                const dmgPer = parseInt(damageFormula) || 1;
+                totalDamage = failed * dmgPer;
+            }
+
+            // Apply Damage
+            const currentWounds = actor.system.stats.wounds.value;
+            const newWounds = Math.max(0, currentWounds - totalDamage);
+
+            await actor.update({ "system.stats.wounds.value": newWounds });
+
+            ChatMessage.create({
+                speaker: ChatMessage.getSpeaker({ actor: actor }),
+                content: `
+                    <div class="warhammer-roll">
+                        <h3>Damage Applied to ${targetName}</h3>
+                         <div class="roll-summary" style="font-size: 1.2em; text-align: center; margin-top: 5px;">
+                            <span style="color: red; font-weight: bold;">-${totalDamage} HP</span>
+                        </div>
+                        <div style="text-align: center; font-size: 0.9em; color: #555;">
+                            ${rollDetails}<br>
+                            Health: ${currentWounds} -> <strong>${newWounds}</strong>
                         </div>
                     </div>
                 `

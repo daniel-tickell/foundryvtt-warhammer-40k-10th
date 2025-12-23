@@ -85,51 +85,7 @@ export class PhaseHUD extends Application {
     async _onRollWeapon(event) {
         event.preventDefault();
         const itemId = event.currentTarget.dataset.itemId;
-        const item = this.token.actor.items.get(itemId);
-        if (item) {
-            const system = item.system;
-            // 1. Determine Number of Attacks
-            let numAttacks = 1;
-            try {
-                // Attacks can be "4" or "D6+1"
-                let attacksRoll = new Roll(system.attacks.toString());
-                await attacksRoll.evaluate({ async: true });
-                numAttacks = attacksRoll.total;
-            } catch (e) {
-                console.warn("Failed to parse attacks:", system.attacks);
-            }
-
-            // 2. Roll Hit Dice
-            let hitRoll = new Roll(`${numAttacks}d6`);
-            await hitRoll.evaluate({ async: true });
-
-            // 3. Construct Chat Message
-            let content = `
-                <div class="warhammer-roll">
-                    <h3>${item.name}</h3>
-                    <div class="stats">
-                        <span><strong>Attacks:</strong> ${numAttacks}</span>
-                        <span><strong>Skill:</strong> ${system.skill}+</span>
-                        <span><strong>S:</strong> ${system.strength}</span>
-                        <span><strong>AP:</strong> ${system.ap}</span>
-                        <span><strong>D:</strong> ${system.damage}</span>
-                    </div>
-                    <hr>
-                    <div class="roll-result">
-                        <strong>Hit Roll (${numAttacks} dice):</strong>
-                        <div class="dice-tooltip">${hitRoll.result}</div>
-                        <div class="roll-total">Total Hits: TBD vs ${system.skill}+</div> 
-                    </div>
-                </div>
-            `;
-            // Simple visual check for now. Foundry's default roll template is better but let's just push the roll.
-
-            hitRoll.toMessage({
-                speaker: ChatMessage.getSpeaker({ actor: this.token.actor }),
-                flavor: `<strong>${item.name}</strong> - Attack Roll (Skill: ${system.skill}+)<br>
-                         S:${system.strength} AP:${system.ap} D:${system.damage}`,
-            });
-        }
+        this.token.actor.rollWeapon(itemId);
     }
 
 
