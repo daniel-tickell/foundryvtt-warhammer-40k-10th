@@ -1,4 +1,5 @@
 import { FACTIONS, SYSTEM_ID } from "./constants.js";
+import { TokenGenerator } from "./token_generator.js";
 
 const OPTIONAL_TAGS = ['HEAVY', 'LANCE', 'INDIRECT FIRE']
 export class RosterImporter {
@@ -68,6 +69,34 @@ export class RosterImporter {
             data.system.stats.control = statXml.querySelector("characteristic[name='OC']").firstChild.nodeValue
 
             //items
+            let size = this.getBaseSize(data.name);
+            if (!size && xml !== unitXml) {
+                size = this.getBaseSize(xml.getAttribute('name'));
+            }
+
+            if (size) {
+                data.prototypeToken = {
+                    width: size.width,
+                    height: size.height,
+                    actorLink: false,
+                    sight: { enabled: true, range: 400 }
+                };
+                try {
+                    const tokenPath = await TokenGenerator.generate(data.name, size);
+                    if (tokenPath) {
+                        data.prototypeToken.texture = { src: tokenPath };
+                        data.prototypeToken.randomImg = false;
+                    }
+                } catch (e) {
+                    console.error("Failed to generate token for " + data.name, e);
+                }
+            } else {
+                data.prototypeToken = {
+                    actorLink: false,
+                    sight: { enabled: true, range: 400 }
+                };
+            }
+
             let actor = await Actor.create(data)
             let rules = Array.from(xml.children).find(a => a.tagName === "rules")
 
@@ -364,7 +393,7 @@ export class RosterImporter {
             // It's a unit, find models inside.
             // Wait, usually in 40k 10th lists from BS, a unit acts as the actor.
             // But if specific models have different stats, we might need multiple actors or one actor with mixed stats?
-            // The existing XML importer does: let units = xml.querySelectorAll("selection[type='model']")... if empty use xml.
+            // The existing XML importer does: let units = xml.querySelectorAll("selection[type="model"]")... if empty use xml.
             // It creates ONE actor per model found, or one per unit if no models found?
             // Actually: "units.map(async selection => ... _importUnit"
             // Inside _importUnit: "let models = xml.querySelectorAll('selection[type=\'model\']')"...
@@ -442,14 +471,31 @@ export class RosterImporter {
 
             // Apply Base Size
             let size = this.getBaseSize(name);
+            if (!size && selectionData.name && selectionData.name !== name) {
+                size = this.getBaseSize(selectionData.name);
+            }
+
             if (size) {
                 data.prototypeToken = {
                     width: size.width,
                     height: size.height,
-                    actorLink: false
+                    actorLink: false,
+                    sight: { enabled: true, range: 400 }
                 };
+                try {
+                    const tokenPath = await TokenGenerator.generate(name, size);
+                    if (tokenPath) {
+                        data.prototypeToken.texture = { src: tokenPath };
+                        data.prototypeToken.randomImg = false;
+                    }
+                } catch (e) {
+                    console.error("Failed to generate token for " + name, e);
+                }
             } else {
-                data.prototypeToken = { actorLink: false };
+                data.prototypeToken = {
+                    actorLink: false,
+                    sight: { enabled: true, range: 400 }
+                };
             }
 
             let actor = await Actor.create(data);

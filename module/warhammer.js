@@ -14,6 +14,8 @@ import { WarhammerToken, WarhammerTokenDocument } from "./token.js";
 import "../libs/awesomplete/awesomplete.js"
 import { WarhammerObjectiveData } from "./actors/warhammerObjectiveData.js";
 import { WarhammerObjectiveSheet } from "./actors/objective-sheet.js";
+import { WarhammerCombat } from "./combat.js";
+import { WarhammerCombatTracker } from "./combat-tracker.js";
 /* -------------------------------------------- */
 /* -------------------------------------------- */
 /*  Foundry VTT Initialization                  */
@@ -44,6 +46,8 @@ Hooks.once('init', function () {
     CONFIG.Actor.documentClass = WarhammerActor;
     CONFIG.Item.documentClass = WarhammerItem;
     CONFIG.Token.documentClass = WarhammerTokenDocument;
+    CONFIG.Combat.documentClass = WarhammerCombat;
+    CONFIG.ui.combat = WarhammerCombatTracker;
     game.settings.register(SYSTEM_ID, "baseSizes", {
         name: "Base Sizes",
         scope: "world",

@@ -1,0 +1,116 @@
+<section class="{{cssClass}} directory flexcol" id="{{cssId}}" data-tab="{{tabName}}">
+    <header class="combat-tracker-header">
+        {{#if hasCombat}}
+        <nav class="encounters flexrow" aria-label="COMBAT.NavLabel">
+            <a class="combat-button combat-cycle" aria-label="{{localize 'COMBAT.Previous'}}" role="button" data-tooltip="COMBAT.Previous" data-control="previousCombat">
+                <i class="fas fa-caret-left"></i>
+            </a>
+            <h4 class="encounter-title">{{localize "COMBAT.Encounter"}} {{round}}</h4>
+            <a class="combat-button combat-cycle" aria-label="{{localize 'COMBAT.Next'}}" role="button" data-tooltip="COMBAT.Next" data-control="nextCombat">
+                <i class="fas fa-caret-right"></i>
+            </a>
+        </nav>
+
+        <div class="encounter-controls flexrow">
+             <a class="combat-button combat-control" aria-label="Previous Phase" role="button" data-tooltip="Previous Phase" data-control="previousTurn">
+                <i class="fas fa-step-backward"></i>
+            </a>
+             <div class="phase-display" style="flex: 2; text-align: center; font-weight: bold; background: rgba(0,0,0,0.2); line-height: 24px;">
+                {{phaseLabel}} Phase
+            </div>
+            <a class="combat-button combat-control" aria-label="Next Phase" role="button" data-tooltip="Next Phase" data-control="nextTurn">
+                <i class="fas fa-step-forward"></i>
+            </a>
+             <a class="combat-button combat-control" aria-label="{{localize 'COMBAT.End'}}" role="button" data-tooltip="COMBAT.End" data-control="endCombat">
+                <i class="fas fa-trash"></i>
+            </a>
+        </div>
+        {{else}}
+         <div class="encounter-controls flexrow">
+            <a class="combat-button combat-create" aria-label="{{localize 'COMBAT.Create'}}" role="button" data-tooltip="COMBAT.Create">
+                <i class="fas fa-plus"></i> {{localize "COMBAT.Create"}}
+            </a>
+        </div>
+        {{/if}}
+    </header>
+
+    <ol id="combat-tracker" class="directory-list">
+        {{#if hasCombat}}
+            {{#each warhammerTurns}}
+            <li class="combatant actor directory-item flexrow {{#if this.active}}active{{/if}}" data-army-id="{{this.id}}">
+                 <div class="token-name flexcol">
+                    <h4>{{this.name}}</h4>
+                    <div class="resources flexrow" style="font-size: 0.8em; justify-content: space-around;">
+                        <span class="cp-track flexrow" style="align-items: center; gap: 4px;">
+                            <strong>CP:</strong> {{this.cp}}
+                            <a class="resource-control" data-action="sub" data-army="{{this.id}}" data-resource="cp"><i class="fas fa-minus"></i></a>
+                            <a class="resource-control" data-action="add" data-army="{{this.id}}" data-resource="cp"><i class="fas fa-plus"></i></a>
+                        </span>
+                         <span class="vp-track flexrow" style="align-items: center; gap: 4px;">
+                            <strong>VP:</strong> {{this.vp}}
+                            <a class="resource-control" data-action="sub" data-army="{{this.id}}" data-resource="vp"><i class="fas fa-minus"></i></a>
+                            <a class="resource-control" data-action="add" data-army="{{this.id}}" data-resource="vp"><i class="fas fa-plus"></i></a>
+                        </span>
+                    </div>
+                </div>
+            </li>
+            {{/each}}
+        {{else}}
+            {{#each turns}}
+            <li class="combatant actor directory-item flexrow {{this.css}}" data-combatant-id="{{this.id}}">
+                <img class="token-image" data-src="{{this.img}}" alt="{{this.name}}"/>
+                <div class="token-name flexcol">
+                    <h4>{{this.name}}</h4>
+                    <div class="combatant-controls flexrow">
+                        {{#if ../user.isGM}}
+                        <a class="combatant-control {{#if this.hidden}}active{{/if}}" aria-label="{{localize 'COMBAT.ToggleVis'}}" role="button" data-tooltip="COMBAT.ToggleVis" data-control="toggleHidden">
+                            <i class="fas fa-eye-slash"></i>
+                        </a>
+                        <a class="combatant-control {{#if this.defeated}}active{{/if}}" aria-label="{{localize 'COMBAT.ToggleDead'}}" role="button" data-tooltip="COMBAT.ToggleDead" data-control="toggleDefeated">
+                            <i class="fas fa-skull"></i>
+                        </a>
+                        {{/if}}
+                        {{#if this.canPing}}
+                        <a class="combatant-control" aria-label="{{localize 'COMBAT.PingCombatant'}}" role="button" data-tooltip="COMBAT.PingCombatant" data-control="pingCombatant">
+                            <i class="fas fa-bullseye"></i>
+                        </a>
+                        {{/if}}
+                        <div class="token-effects">
+                            {{#each this.effects}}
+                            <img class="token-effect" src="{{this}}"/>
+                            {{/each}}
+                        </div>
+                    </div>
+                </div>
+                {{#if this.hasResource}}
+                <div class="token-resource">
+                    <span class="resource">{{this.resource}}</span>
+                </div>
+                {{/if}}
+
+                <div class="token-initiative">
+                    {{#if this.hasRolled}}
+                    <span class="initiative">{{this.initiative}}</span>
+                    {{else}}
+                    <a class="combatant-control roll" aria-label="{{localize 'COMBAT.InitiativeRoll'}}" role="button" data-tooltip="COMBAT.InitiativeRoll" data-control="rollInitiative">
+                    </a>
+                    {{/if}}
+                </div>
+            </li>
+            {{/each}}
+        {{/if}}
+    </ol>
+    
+    {{#if hasCombat}}
+    <nav id="combat-controls" class="directory-footer flexrow" data-tooltip-direction="UP">
+        {{#if user.isGM}}
+            {{#if round}}
+            <a class="combat-control" aria-label="{{localize 'COMBAT.End'}}" role="button" data-tooltip="COMBAT.End" data-control="endCombat">{{localize 'COMBAT.End'}}</a>
+            {{else}}
+            <a class="combat-control" aria-label="{{localize 'COMBAT.Begin'}}" role="button" data-tooltip="COMBAT.Begin" data-control="startCombat">{{localize 'COMBAT.Begin'}}</a>
+            {{/if}}
+            <a class="combat-control" aria-label="{{localize 'COMBAT.NextTurn'}}" role="button" data-tooltip="COMBAT.NextTurn" data-control="nextTurn">{{localize 'COMBAT.NextTurn'}}</a>
+        {{/if}}
+    </nav>
+    {{/if}}
+</section>
