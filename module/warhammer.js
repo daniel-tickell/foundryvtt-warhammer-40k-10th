@@ -20,7 +20,7 @@ import { WarhammerCombatTracker } from "./combat-tracker.js";
 /* -------------------------------------------- */
 /*  Foundry VTT Initialization                  */
 /* -------------------------------------------- */
-console.log("Warhammer 40k | System Module Loading...");
+console.log("Warhammer 40k | System Module Loading... REFRESHED");
 /**
  * Init hook.
  */
@@ -48,6 +48,8 @@ Hooks.once('init', function () {
     CONFIG.Token.documentClass = WarhammerTokenDocument;
     CONFIG.Combat.documentClass = WarhammerCombat;
     CONFIG.ui.combat = WarhammerCombatTracker;
+    console.log("Warhammer 40k | Combat Class Registered (Refresh Check):", CONFIG.Combat.documentClass);
+    console.log("Warhammer 40k | Combat Tracker Registered (Refresh Check):", CONFIG.ui.combat);
     game.settings.register(SYSTEM_ID, "baseSizes", {
         name: "Base Sizes",
         scope: "world",
@@ -128,6 +130,11 @@ Hooks.once('init', function () {
     CONFIG.Token.objectClass = WarhammerToken;
 
     return preloadHandlebarsTemplates();
+});
+
+Hooks.once('setup', function () {
+    CONFIG.ui.combat = WarhammerCombatTracker;
+    console.log("Warhammer 40k | Combat Tracker Re-Registered in Setup:", CONFIG.ui.combat);
 });
 
 //turn tag string into array of tags
@@ -298,6 +305,8 @@ Hooks.on('renderActorDirectory', (app, html, data) => {
     const $html = $(html);
     console.log("Warhammer 40k | Directory HTML classes:", $html[0]?.className);
 
+    console.log("Warhammer 40k | Directory HTML classes:", $html[0]?.className);
+
     // Try multiple selectors to find the correct container for buttons
     let actions = $html.find('.header-actions.action-buttons');
     if (!actions.length) actions = $html.find('.header-actions');
@@ -407,7 +416,62 @@ function renderImportDialog() {
 }
 
 // Phase HUD Integration
+Hooks.on("getActorDirectoryFolderContext", (html, options) => {
+    options.push({
+        name: "Add Army to Combat",
+        icon: '<i class="fas fa-swords"></i>',
+        condition: (header) => {
+            return game.user.isGM;
+        },
+        callback: async (header) => {
+            const folderId = header.parent().data("folderId");
+            const folder = game.folders.get(folderId);
+
+            if (!folder) return;
+
+            const actorIds = new Set(folder.contents.map(a => a.id));
+            const tokens = canvas.tokens.placeables.filter(t => actorIds.has(t.actor?.id));
+
+            if (tokens.length === 0) {
+                ui.notifications.warn(`No tokens found on scene for army: ${folder.name}`);
+                return;
+            }
+
+            // Get or Create Combat
+            let combat = game.combat;
+            if (!combat) {
+                if (game.combats.size === 0) {
+                    combat = await Combat.create({ scene: canvas.scene.id });
+                } else {
+                    combat = game.combats.first();
+                }
+            }
+            await combat.activate();
+
+            // Add Tokens
+            const existingIds = new Set(combat.combatants.map(c => c.tokenId));
+            const newTokens = tokens.filter(t => !existingIds.has(t.id));
+
+            if (newTokens.length === 0) {
+                ui.notifications.info("All tokens from this army are already in combat.");
+                return;
+            }
+
+            await combat.createEmbeddedDocuments("Combatant", newTokens.map(t => ({ tokenId: t.id })));
+            ui.notifications.info(`Added ${newTokens.length} units from ${folder.name} to combat.`);
+        }
+    });
+});
+
 Hooks.once("ready", async () => {
+    // Force Combat Tracker Registration (Last Resort)
+    if (CONFIG.ui.combat !== WarhammerCombatTracker) {
+        CONFIG.ui.combat = WarhammerCombatTracker;
+        ui.combat = new WarhammerCombatTracker({ popOut: false });
+        ui.combat.render(true);
+        console.log("Warhammer 40k | Combat Tracker FORCED in Ready Hook");
+    }
+
     // Dynamically import the class to avoid circular dependencies if any
     const { PhaseHUD } = await import("./apps/phase-hud.js");
     game.phaseHUD = new PhaseHUD();

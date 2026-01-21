@@ -8,6 +8,7 @@ export class WarhammerCombatTracker extends CombatTracker {
     }
 
     async getData(options) {
+        console.log("Warhammer 40k | WarhammerCombatTracker.getData called");
         const context = await super.getData(options);
         const combat = this.viewed;
 
@@ -30,9 +31,18 @@ export class WarhammerCombatTracker extends CombatTracker {
         // We'll reconstruct the turn list to be visualizing Armies, not individual units
         // effectively replacing context.turns
 
-        const armies = combat.getFlag(SYSTEM_ID, "armies") || [];
+        let armies = combat.getFlag(SYSTEM_ID, "armies") || [];
         const cp = combat.getFlag(SYSTEM_ID, "cp") || {};
         const vp = combat.getFlag(SYSTEM_ID, "vp") || {};
+
+        if (armies.length === 0 && combat.combatants.size > 0) {
+            const previewArmies = new Set();
+            for (const c of combat.combatants) {
+                const folderId = c.actor?.folder?.id || "unassigned";
+                previewArmies.add(folderId);
+            }
+            armies = Array.from(previewArmies);
+        }
 
         context.warhammerTurns = [];
 

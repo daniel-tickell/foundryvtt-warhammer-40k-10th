@@ -204,4 +204,66 @@ export class WarhammerCombat extends Combat {
         history[armyId] = Math.max(0, current + amount);
         return this.setFlag(SYSTEM_ID, "vp", history);
     }
+
+    /** @override */
+    _onCreateEmbeddedDocuments(embeddedName, documents, result, options, userId) {
+        super._onCreateEmbeddedDocuments(embeddedName, documents, result, options, userId);
+        if (embeddedName !== "Combatant") return;
+
+        // Only trigger this logic if combat has started (armies flag exists)
+        // If combat hasn't started, startCombat() will handle it all.
+        const armies = this.getFlag(SYSTEM_ID, "armies");
+        if (!armies) return;
+
+        // We need to update:
+        // 1. Armies Flag (if new army)
+        // 2. Initiative of new combatants (to match army)
+
+        let updates = [];
+        let armyUpdates = [...armies];
+        let flagsToUpdate = {};
+        let needsFlagUpdate = false;
+
+        for (const combatant of documents) {
+            const actor = combatant.actor;
+            const folderId = actor?.folder?.id || "unassigned";
+
+            // Check if Army exists
+            if (!armyUpdates.includes(folderId)) {
+                armyUpdates.push(folderId);
+                needsFlagUpdate = true;
+                // Initialize resources for new army?
+                // They default to 0 in tracker anyway.
+            }
+
+            // Determine Initiative
+            // Find an existing combatant from this army to copy initiative from?
+            // Or calculate based on army index?
+            // simpler: Just get all combatants, re-sort armies (if we want to keep logic) or just append.
+            // Let's iterate existing combatants in this combat
+
+            const peer = this.combatants.find(c => c.id !== combatant.id && (c.actor?.folder?.id || "unassigned") === folderId);
+            let initiative = 0;
+
+            if (peer && peer.initiative !== null) {
+                initiative = peer.initiative;
+            } else {
+                // New Army? Give it a value lower than others?
+                // Or just 0.
+                // If we want it to be added to the end, we need to know the lowest init.
+                // Let's just default to 0 for now.
+                initiative = 0;
+            }
+
+            updates.push({ _id: combatant.id, initiative: initiative });
+        }
+
+        if (needsFlagUpdate) {
+            this.setFlag(SYSTEM_ID, "armies", armyUpdates);
+        }
+
+        if (updates.length > 0) {
+            this.updateEmbeddedDocuments("Combatant", updates);
+        }
+    }
 }
